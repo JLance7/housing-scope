@@ -10,3 +10,23 @@
 .account-status:empty{display:none}.account-status{font-size:13px;color:var(--muted)}.account-buttons{flex-shrink:0}.highlights{margin-bottom:24px;padding:20px;border:1px solid var(--line);border-radius:16px;background:#fff}.highlights h2{margin:0 0 12px;font-size:20px}.highlight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}.highlight-grid h3{font-size:14px;margin:0 0 6px}.highlight-grid p{font-size:13px;color:#5d6c64;margin:0;line-height:1.5}@media(max-width:560px){.topbar{height:auto;min-height:61px;flex-wrap:wrap;gap:10px;padding-block:10px}.topbar nav{flex:1;justify-content:center}.account-buttons .clear-button{font-size:11px}}
 
 .location-filters{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;align-items:end}.location-filters label,.city-tools label{font-size:12px}.location-filters label:not(.check-filter){display:grid;gap:4px}.location-filters select,.location-filters input:not([type=checkbox]),.city-tools select{padding:7px;border:1px solid var(--line);border-radius:6px;max-width:100%}.location-filters .check-filter{padding-block:8px}.city-tools[hidden]{display:none}
+
+[hidden]{display:none!important}
+body{font-size:16px}
+.brand{font-size:21px}.brand-sub{font-size:10px}.topbar nav a,.clear-button{font-size:14px}
+.hero h1{font-size:clamp(36px,5vw,58px)}.intro,.account-status{font-size:17px;line-height:1.55}
+.highlights h2,.filter-heading h2,.section-head h2{font-size:24px}
+.highlight-grid h3,.listing-top h3{font-size:18px}
+.highlight-grid p,.filter-heading p,.muted,.location,.facts,.cost-row span,.empty,.feed-settings,.source-link{font-size:14px}
+.filters label,.location-filters label,.city-tools label,.area-line,.stats span,.stats small{font-size:14px}
+input,select,button{font-size:inherit}
+.eyebrow,.demo-tag,.disclaimer,footer{font-size:12px}
+.price,.cost-row b{font-size:16px}.price small{font-size:12px}
+.area-line{grid-template-columns:minmax(70px,1fr) minmax(40px,1fr) auto}
+@media(max-width:560px){
+ .topbar nav a,.account-buttons .clear-button{font-size:13px}
+ .stats span,.stats small{font-size:12px}
+ .section-head select{font-size:13px;min-width:0}
+}
+
+.filters select,.filters input[type=search],.section-head select{font-size:14px}

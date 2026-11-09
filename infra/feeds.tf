@@ -6,7 +6,7 @@ variable "rentcast_api_key" {
 
 variable "rentcast_markets" {
   type    = string
-  default = "New York,NY"
+  default = "White Plains,NY"
 }
 
 variable "listing_feed_url" {

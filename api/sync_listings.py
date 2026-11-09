@@ -9,11 +9,15 @@ from api import rentcast
 from dotenv import load_dotenv
 
 
+PREVIEW_CITY = 'White Plains'
+
+
 def configured_markets():
     from api.storage import feed_settings
 
-    configured = rentcast.markets(os.getenv('RENTCAST_MARKETS', 'New York,NY'))
+    configured = rentcast.markets(os.getenv('RENTCAST_MARKETS', 'White Plains,NY'))
     markets = {city.casefold(): (city, state) for city, state in configured}
+    markets[PREVIEW_CITY.casefold()] = (PREVIEW_CITY, 'NY')
     for market in sorted(feed_settings('market:'), key=lambda row: row['city'].casefold()):
         city, state = market['city'], market['state']
         markets.setdefault(city.casefold(), (city, state))
@@ -108,6 +112,19 @@ def lambda_handler(event, context):
 
     if not TABLE:
         init_db()
+    if event.get('mode') == 'preview':
+        from api.storage import all_rows
+        cutoff = (rentcast.today() - timedelta(days=7)).isoformat()
+        if any(row['area'].casefold() == PREVIEW_CITY.casefold()
+               and row.get('source') == rentcast.SOURCE and str(row.get('updated_at') or '') >= cutoff
+               for row in all_rows()):
+            return {'updated': 0, 'preview': 'already cached'}
+        try:
+            updated = sync_feed(city=PREVIEW_CITY)
+            return {'updated': updated, 'preview': 'ready' if updated else 'no live listings imported'}
+        except Exception as exc:
+            print('Preview import failed:', type(exc).__name__)
+            return {'updated': 0, 'preview': 'sample listings available'}
     if event.get('mode') == 'manual':
         city = event.get('city', '')
         if not isinstance(city, str) or len(city) > 80:

@@ -41,5 +41,47 @@
     "insurance_yearly": 1900,
     "source": "Sample data",
     "neighborhood": "Pelham Bay"
+  },
+  {
+    "id": "wp-sample-1",
+    "title": "Downtown one-bedroom",
+    "area": "White Plains",
+    "address": "Downtown, White Plains, NY",
+    "neighborhood": "Downtown",
+    "property_type": "Apartment",
+    "price": 2250,
+    "rent": 2250,
+    "beds": 1,
+    "baths": 1,
+    "sqft": 690,
+    "source": "Sample data"
+  },
+  {
+    "id": "wp-sample-2",
+    "title": "Battle Hill two-bedroom",
+    "area": "White Plains",
+    "address": "Battle Hill, White Plains, NY",
+    "neighborhood": "Battle Hill",
+    "property_type": "Apartment",
+    "price": 2700,
+    "rent": 2700,
+    "beds": 2,
+    "baths": 1,
+    "sqft": 960,
+    "source": "Sample data"
+  },
+  {
+    "id": "wp-sample-3",
+    "title": "Highlands starter home",
+    "area": "White Plains",
+    "address": "Highlands, White Plains, NY",
+    "neighborhood": "Highlands",
+    "property_type": "House",
+    "price": 615000,
+    "rent": null,
+    "beds": 3,
+    "baths": 2,
+    "sqft": 1490,
+    "source": "Sample data"
   }
 ]

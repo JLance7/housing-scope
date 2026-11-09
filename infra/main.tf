@@ -137,3 +137,12 @@ resource "aws_lambda_permission" "sync" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.sync.arn
 }
+
+
+# Warm the guest catalog during the first deployment with a listing provider key.
+resource "aws_lambda_invocation" "guest_preview" {
+  count           = nonsensitive(length(trimspace(var.rentcast_api_key)) > 0) ? 1 : 0
+  function_name   = aws_lambda_function.app["sync"].function_name
+  input           = jsonencode({ mode = "preview" })
+  lifecycle_scope = "CREATE_ONLY"
+}

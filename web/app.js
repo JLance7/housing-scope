@@ -3,7 +3,7 @@ const stageFetch=(path,options)=>window.homeScopeAuth.fetch(path.startsWith('/ap
 const accountMode = Boolean(window.HOMESCOPE_AUTH);
 let account = null;
 const $=s=>document.querySelector(s),fmt=n=>'$'+Math.round(n||0).toLocaleString();let listings=[],savedOnly=false;
-const DEFAULT_CITY = 'New York';
+const DEFAULT_CITY = 'White Plains';
 const cityKey = 'homescope.cities';
 const citySelect = $('#area');
 const cityName = value => value.trim().replace(/\s+/g, ' ');
@@ -25,7 +25,6 @@ function addCityOption(value) {
   return value;
 }
 
-readCities().forEach(addCityOption);
 $('#addCity').onsubmit = event => {
   event.preventDefault();
   const input = $('#cityName');
@@ -58,7 +57,7 @@ function safeSource(value) {
 }
 
 let loadVersion = 0;
-async function load(){const version=++loadVersion;const city=citySelect.value;$('#currentCity').textContent=city.toUpperCase();const p=new URLSearchParams({budget:$('#budget').value,property_type:$('#type').value,area:$('#area').value,q:$('#searchText').value,sort:$('#sort').value,saved_only:savedOnly,neighborhood:$('#neighborhood').value,min_rating:$('#minRating').value,affordable_only:$('#affordableOnly').checked});if($('#maxPrice').value!=='')p.set('max_price',$('#maxPrice').value);try{const route=accountMode&&!account?'/api/public/listings':'/api/listings';const r=await stageFetch(route+'?'+p);if(!r.ok)throw Error();const results=await r.json();if(version!==loadVersion)return;listings=results;render()}catch(e){if(version!==loadVersion)return;$('#listingGrid').innerHTML='<div class="error">Start the API with run.bat to load saved listings.</div>'}}
+async function load(){const version=++loadVersion;const city=citySelect.value;$('#currentCity').textContent=city===DEFAULT_CITY?'WHITE PLAINS, NY':city.toUpperCase();const p=new URLSearchParams({budget:$('#budget').value,property_type:$('#type').value,area:$('#area').value,q:$('#searchText').value,sort:$('#sort').value,saved_only:savedOnly,neighborhood:$('#neighborhood').value,min_rating:$('#minRating').value,affordable_only:$('#affordableOnly').checked});if($('#maxPrice').value!=='')p.set('max_price',$('#maxPrice').value);try{const route=accountMode&&!account?'/api/public/listings':'/api/listings';const r=await stageFetch(route+'?'+p);if(!r.ok)throw Error();const results=await r.json();if(version!==loadVersion)return;listings=results;render()}catch(e){if(version!==loadVersion)return;$('#listingGrid').innerHTML='<div class="error">Listings could not be loaded. Try again in a moment.</div>'}}
 function render(){const budget=+$('#budget').value;$('#budgetValue').textContent=fmt(budget);$('#count').textContent=listings.length;$('#affordableCount').textContent=listings.filter(x=>x.monthly_cost<=budget).length;$('#avgPayment').textContent=listings.length?fmt(listings.reduce((a,x)=>a+x.monthly_cost,0)/listings.length):'—';$('#savedCount').textContent=listings.filter(x=>x.favorite).length;$('#empty').classList.toggle('hidden',listings.length>0);$('#listingGrid').innerHTML=listings.map(x=>'<article class="listing"><div class="listing-art '+(x.property_type==='Apartment'?'apartment':'')+'"><span>'+(x.source==='RentCast'?'RentCast · checked '+escapeHtml(x.updated_at):x.source==='Sample data'?'Sample listing':x.change_30d<0?'Price reduced':'Listing')+'</span>'+(accountMode&&!account?'':'<button class="heart '+(x.favorite?'saved':'')+'" data-save="'+escapeHtml(encodeURIComponent(x.id))+'">'+(x.favorite?'♥':'♡')+'</button>')+'</div><div class="listing-info"><div class="listing-top"><div><h3>'+escapeHtml(x.title)+'</h3><div class="location">'+escapeHtml(x.area)+(x.neighborhood?' · '+escapeHtml(x.neighborhood):'')+' · '+escapeHtml(x.property_type)+'</div></div><div class="price">'+fmt(x.price)+'<small>'+(x.property_type==='House'?'asking price':'per month')+'</small></div></div>'+(x.rating_count?'<p class="muted">Neighborhood rating: '+escapeHtml(x.rating)+'/5 ('+escapeHtml(x.rating_count)+')</p>':'')+'<div class="facts"><span>'+escapeHtml(x.beds)+' beds</span><span>'+escapeHtml(x.baths)+' baths</span><span>'+Number(x.sqft||0).toLocaleString()+' sq ft</span></div><div class="cost-row"><span>Est. monthly cost</span><b>'+fmt(x.monthly_cost)+(x.property_type==='Apartment'?'/mo':'')+'</b></div>'+(safeSource(x.source_url)?'<a class="source-link" href="'+safeSource(x.source_url)+'" target="_blank" rel="noopener">View source listing ↗</a>':'')+'</div></article>').join('');document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{await stageFetch('/api/listings/'+b.dataset.save+'/favorite',{method:'POST'});load()});renderAreas()}
 async function renderAreas(){if(accountMode&&!account){$('#areaBars').textContent='Sign in to see the area cost snapshot.';return}const version=loadVersion;const city=citySelect.value;const all=await stageFetch('/api/areas').then(r=>r.ok?r.json():[]).catch(()=>[]);if(version!==loadVersion)return;const a=all.filter(x=>sameCity(x.name,city)),m=Math.max(1,...a.map(x=>x.avg_monthly));$('#areaBars').innerHTML=a.map(x=>'<div class="area-line"><span class="name">'+escapeHtml(x.name)+'</span><div class="bar-bg"><div class="bar" style="width:'+Math.max(12,x.avg_monthly/m*100)+'%"></div></div><span class="num">'+fmt(x.avg_monthly)+'</span></div>').join('') || '<p class="muted">No listings for this city yet.</p>'}
 let timer;$('#budget').oninput=()=>{clearTimeout(timer);timer=setTimeout(load,200)};$('#type').onchange=load;$('#area').onchange=()=>changeCity();$('#searchText').oninput=()=>{clearTimeout(timer);timer=setTimeout(load,200)};$('#sort').onchange=load;document.querySelector('a[href="#saved"]').onclick=e=>{e.preventDefault();if(accountMode&&!account){$('#signIn').focus();return}savedOnly=!savedOnly;load()};$('#csvFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const r=await stageFetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:await f.text()})});const x=await r.json();alert('Imported '+x.imported+' listings');load();e.target.value=''};$('#clearFilters').onclick=()=>{$('#budget').value=2400;$('#type').value='all';$('#area').value=DEFAULT_CITY;$('#searchText').value='';$('#minRating').value='0';$('#maxPrice').value='';$('#affordableOnly').checked=false;savedOnly=false;changeCity()};
@@ -85,7 +84,7 @@ async function feedRequest(path, method, data) {
 
 let feedStatusVersion = 0;
 async function refreshFeedStatus() {
-  if (accountMode && !account) return;
+  if (accountMode && !account?.admin) return;
   const version = ++feedStatusVersion;
   const city = citySelect.value;
   const schedule = $('#scheduleCity');
@@ -207,6 +206,10 @@ async function initializeApp() {
   account = await window.homeScopeAuth.ready;
   if (accountMode) {
     const admin = Boolean(account?.admin);
+    $('#guestHelp').hidden = Boolean(account);
+    $('#emailAccessHelp').hidden = admin;
+    $('#emailPanel').hidden = !admin;
+    citySelect.disabled = !account;
     $('#syncFeed').hidden = !account;
     $('#marketForm').hidden = !account;
     $('#ownerPanel').hidden = !account?.owner;
@@ -215,14 +218,16 @@ async function initializeApp() {
     $('#watchEmail').readOnly = true;
     $('#watchEmail').required = false;
     $('#watchEmail').value = account?.email || '';
-    if (!account) {
-      $('#feedStatus').textContent = 'Sign in with Google to view city schedules and save an email watch.';
-
-    }
+  } else {
+    $('#addCity').hidden = false;
+    $('#syncFeed').hidden = false;
+    $('#emailPanel').hidden = false;
+    $('#csvFile').closest('label').hidden = false;
   }
-  if (accountMode) {
+  if (!accountMode || account) readCities().forEach(addCityOption);
+  if (accountMode && account) {
     try {
-      const markets = await feedRequest('/api/public/markets', 'GET');
+      const markets = await feedRequest('/api/feed/markets', 'GET');
       for (const market of markets) addCityOption(market.city);
     } catch (error) {
       $('#feedAction').textContent = error.message;
@@ -268,7 +273,8 @@ async function changeCity(selected = '') {
   updateLocationControls();
   refreshFeedStatus();
   try {
-    const data = await feedRequest('/api/public/neighborhoods?' + new URLSearchParams({ area: city }), 'GET');
+    const route = accountMode && !account ? '/api/public/neighborhoods' : '/api/neighborhoods';
+    const data = await feedRequest(route + '?' + new URLSearchParams({ area: city }), 'GET');
     if (version !== neighborhoodVersion) return;
     for (const row of data) {
       const label = row.rating_count ? row.name + ' · ' + row.rating + '★' : row.name;

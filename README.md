@@ -1,6 +1,6 @@
 # HomeScope
 
-HomeScope helps you compare places to live by what they might cost each month. Explore rentals and homes for sale without signing in, starting with New York.
+HomeScope helps you compare places to live by what they might cost each month. Browse the White Plains, New York preview without an account. Sign in with Google to explore other locations.
 
 ## What makes HomeScope different?
 

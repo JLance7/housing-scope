@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from api.storage import ROOT, TABLE, all_rows, init_db, monthly_cost, normalize, read_feed_setting, save_row, write_feed_setting
-from api.sync_listings import configured_markets, sync_feed
+from api.sync_listings import PREVIEW_CITY, configured_markets, sync_feed
 from api.alerts import delete_watch_topic, subscribe_watch, topic_prefix, watch_key
 
 WEB = ROOT / 'web'
@@ -19,14 +19,10 @@ app=FastAPI(title='HomeScope API',version='1.0.0')
 def startup():
  if not TABLE:init_db()
  rows = all_rows()
- if not rows or any(
-  row['id'] in {f'home-{i:02d}' for i in range(1, 9)} and row.get('source') == 'Sample data'
-  for row in rows
- ):
-  existing_ids = {row['id'] for row in rows}
-  for item in json.loads((ROOT/'seed_listings.json').read_text(encoding='utf-8')):
-   if item['id'] not in existing_ids:
-    save_row(normalize(item))
+ existing_ids={row['id'] for row in rows}
+ for item in json.loads((ROOT/'seed_listings.json').read_text(encoding='utf-8')):
+  if item['area']==PREVIEW_CITY and item['id'] not in existing_ids:
+   save_row(normalize(item),keep_favorite=True)
  seeded = {'nyc-01':'Astoria','nyc-02':'Sunset Park','nyc-03':'Pelham Bay'}
  for row in rows:
   if row['id'] in seeded and row.get('source')=='Sample data' and not row.get('neighborhood'):
@@ -60,7 +56,7 @@ def account_favorites(claims):
 def account(request:Request):
  claims=auth.identity(request)
  if claims is None:return {'auth_required':False,'admin':True}
- return {'auth_required':True,'admin':auth.is_admin(claims),'owner':auth.is_owner(claims),'email':auth.verified_email(request,claims)}
+ return {'auth_required':True,'admin':can_manage_sync(claims),'owner':auth.is_owner(claims),'email':auth.verified_email(request,claims)}
 
 def public(x):
  x=dict(x);x['monthly_cost']=monthly_cost(x);x['favorite']=bool(x.get('favorite',False));return x
@@ -105,14 +101,22 @@ def listings(request:Request,budget:float=Query(4200,ge=0),property_type:str='al
 
 @app.get('/api/public/listings')
 def public_listings(budget:float=Query(4200,ge=0),property_type:str='all',area:str='all',q:str='',sort:str='cost',affordable_only:bool=False,neighborhood:str='',min_rating:float=Query(0,ge=0,le=5),max_price:Optional[float]=Query(None,ge=0)):
- return browse_listings(None,budget,property_type,area,q,sort,affordable_only,False,neighborhood,min_rating,max_price,guest=True)
+ return browse_listings(None,budget,property_type,PREVIEW_CITY,q,sort,affordable_only,False,neighborhood,min_rating,max_price,guest=True)
 
 @app.get('/api/public/markets')
 def public_markets():
- return [{'city':city,'state':state} for city,state in configured_markets()]
+ return [{'city':PREVIEW_CITY,'state':'NY'}]
 
 @app.get('/api/public/neighborhoods')
-def neighborhoods(area:str=Query(min_length=1,max_length=80)):
+def public_neighborhoods():
+ return neighborhood_summary(PREVIEW_CITY)
+
+@app.get('/api/neighborhoods')
+def neighborhoods(request:Request,area:str=Query(min_length=1,max_length=80)):
+ auth.identity(request)
+ return neighborhood_summary(area)
+
+def neighborhood_summary(area):
  ratings=locations.neighborhood_ratings(area)
  names={row['neighborhood'] for row in visible_rows()
         if row['area'].casefold()==area.casefold() and row.get('neighborhood')}
@@ -257,11 +261,15 @@ class UnsubscribeBody(BaseModel):
  city:str=Field(min_length=1,max_length=80)
  email:str=Field(default="",max_length=254)
 
+def can_manage_sync(claims):
+ if auth.is_owner(claims):return True
+ if not auth.is_admin(claims):return False
+ access=read_feed_setting('alert_access:'+claims['sub'])
+ return not access or access['enabled']
+
 def require_admin(request,token):
  if auth.required():
-  claims=auth.identity(request)
-  access=read_feed_setting('alert_access:'+claims['sub'])
-  if not auth.is_admin(claims) or (not auth.is_owner(claims) and access and not access['enabled']):
+  if not can_manage_sync(auth.identity(request)):
    raise HTTPException(403,'Owner or approved sync access is required')
   return
  if not ADMIN_TOKEN:raise HTTPException(503,'Configure ADMIN_TOKEN to change feed settings')

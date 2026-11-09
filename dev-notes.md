@@ -7,7 +7,7 @@ Use **Terraform and GitHub Actions** for the hosted HomeScope website. The deplo
 ## Run locally (Windows)
 1. Install Python 3.11 or 3.12 for Windows. Python 3.8 cannot install the pinned Uvicorn release.
 2. Double-click `run.bat` to create `.venv`, install dependencies, and start the app at http://127.0.0.1:8000. If the launcher cannot find Python, pass its full path as the first argument.
-3. New York opens by default with sample listings. Use **Add a city** to add a city to this browser's picker. Import an authorized CSV containing a `city` column (or the existing `area` column) that matches the city name, or sync an authorized feed. Adding a city alone does not fetch listings.
+3. White Plains, New York, opens by default with sample listings. Use **Add a city** to add a city to this browser's picker. Import an authorized CSV containing a `city` column (or the existing `area` column) that matches the city name, or sync an authorized feed. Adding a city alone does not fetch listings.
 
 ## Daily online listings with RentCast
 
@@ -25,14 +25,14 @@ If the IAM bootstrap is already applied, reapply it locally before running the d
 
 
 1. Create a key on the [RentCast Developer plan](https://developers.rentcast.io/reference/getting-started-guide). Copy the local settings template with `Copy-Item .env.example .env` if you do not already have a local settings file.
-2. Set `RENTCAST_API_KEY` and set `ADMIN_TOKEN` to a long random value. Leave `RENTCAST_MARKETS="New York,NY"` for the default. Add markets with semicolons, for example `RENTCAST_MARKETS="New York,NY;Chicago,IL"`. Use the same city names in the browser picker.
+2. Set `RENTCAST_API_KEY` and set `ADMIN_TOKEN` to a long random value. Leave `RENTCAST_MARKETS="White Plains,NY"` for the default. Add markets with semicolons, for example `RENTCAST_MARKETS="White Plains,NY;Chicago,IL"`. Use the same city names in the browser picker.
 3. In HomeScope choose a city and click **Get updated listings** for a manual import. Alternatively, run a manual import from the project directory.
 
 ```powershell
 .\.venv\Scripts\python.exe -m api.sync_listings
 ```
 
-The ETL allows one automatic RentCast request per UTC day, plus a separate manual budget of one per UTC day and at most 15 in any 32 UTC dates per database. It rotates through markets and sale/rental endpoints and fetches up to 100 active listings per request. With just New York configured, sales and rentals alternate. With more cities each combination refreshes less often. Duplicate triggers on the same day skip the request, including after a failed attempt. The Developer plan includes 50 requests per billing period and charges overages above that. Use a dedicated key for one installation and monitor total account use if you also run another copy or make other API calls. See [RentCast pricing](https://developers.rentcast.io/reference/billing-and-pricing).
+The ETL allows one automatic RentCast request per UTC day, plus a separate manual budget of one per UTC day and at most 15 in any 32 UTC dates per database. It rotates through markets and sale/rental endpoints and fetches up to 100 active listings per request. With just White Plains configured, sales and rentals alternate. With more cities each combination refreshes less often. Duplicate triggers on the same day skip the request, including after a failed attempt. The Developer plan includes 50 requests per billing period and charges overages above that. Use a dedicated key for one installation and monitor total account use if you also run another copy or make other API calls. See [RentCast pricing](https://developers.rentcast.io/reference/billing-and-pricing).
 
 HomeScope shows when it fetched a RentCast listing. Results are a sample of provider inventory, and availability can change before the next refresh. Cached RentCast listings older than seven days are hidden from search but remain in Saved if you favorited them. Demo listings are hidden in a city while that city has recent online listings. RentCast does not supply all ownership costs in its listing response.
 
@@ -49,7 +49,9 @@ The app does not scrape Zillow or bypass listing access controls. Use an authori
 
 ## Browsing and saved locations
 
-Guests can read the listing catalog, available markets, and neighborhood summaries. Sign-in is required for saving city or neighborhood locations, rating a neighborhood, manual refreshes, and account preferences. Each signed-in account has one rating per neighborhood or ZIP and can update it. Public results show only aggregate star ratings and counts. CSV or custom feeds can supply a neighborhood field. RentCast results fall back to an explicitly labeled ZIP when a neighborhood name is unavailable. The manual refresh imports for the selected city; neighborhood and ZIP filters apply to the stored results.
+Guests can browse the White Plains, New York preview. The public catalog routes are restricted to that location. Sign-in is required for saving city or neighborhood locations, rating a neighborhood, manual refreshes, and account preferences. Each signed-in account has one rating per neighborhood or ZIP and can update it. Public results show only aggregate star ratings and counts. CSV or custom feeds can supply a neighborhood field. RentCast results fall back to an explicitly labeled ZIP when a neighborhood name is unavailable. The manual refresh imports for the selected city; neighborhood and ZIP filters apply to the stored results.
+
+On the first AWS deployment with a RentCast key, Terraform invokes the ETL Lambda once to preload White Plains. The invocation skips a fresh cache and uses the manual request budget. Labeled sample listings are available while live results are unavailable. Reapply the IAM bootstrap to grant the deploy role permission to invoke the ETL for this preload.
 
 ## Monthly affordability
 For homes it estimates principal and interest for a 30-year loan at 10% down plus listing taxes, insurance, and HOA. Set `MORTGAGE_RATE` for the assumed annual rate. Apartments use rent plus monthly fees. Estimates are comparisons, not lender quotes.

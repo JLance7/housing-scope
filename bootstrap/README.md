@@ -35,7 +35,7 @@ Create a GitHub environment named prod. Restrict it to the default branch (curre
 | HOMES_AUTH_DOMAIN_PREFIX | Unique Cognito domain prefix |
 | HOMES_GOOGLE_CLIENT_ID | Google OAuth web client ID |
 | HOMES_ENABLE_FEED_SYNC | Set to true to enable daily imports and hourly email checks |
-| HOMES_RENTCAST_MARKETS | Optional initial city list, for example New York,NY;Chicago,IL |
+| HOMES_RENTCAST_MARKETS | Optional initial city list, for example White Plains,NY;Chicago,IL |
 | HOMES_FEED_URL | Optional URL for a custom listing feed |
 
 Set HOMES_GOOGLE_CLIENT_SECRET as an environment secret. Amazon SNS handles alert delivery, so there is no sender-address variable. Recipients confirm each watch by email. Set HOMES_RENTCAST_API_KEY to enable online listings from RentCast. If you use a custom feed that requires a token, add HOMES_FEED_TOKEN. GitHub uses OIDC for AWS access. Set Google’s authorized callback as described in the [developer notes](../dev-notes.md#aws-website-and-google-sign-in).
