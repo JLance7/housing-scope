@@ -18,13 +18,13 @@ terraform output
 ```
 
 - Choose a globally unique state bucket. If HomeScope already has Terraform state, reuse the existing bucket by setting create_state_bucket to false. The workflow keeps the state key columbus-homes/prod/terraform.tfstate. For an existing installation, review the first plan for unintended replacements before applying it.
-- The deploy role defaults to the immutable GitHub OIDC subject for [JLance7/housing-scope](https://github.com/JLance7/housing-scope), restricted to the production environment. The example already contains that subject. If GitHub is configured to issue a different subject, set github_subject to the exact subject for that same repository and environment.
+- The deploy role defaults to the immutable GitHub OIDC subject for [JLance7/housing-scope](https://github.com/JLance7/housing-scope), restricted to the prod environment. The example already contains that subject. If GitHub is configured to issue a different subject, set github_subject to the exact subject for that same repository and environment.
 - Set create_github_oidc_provider to true only if your AWS account does not already have the GitHub OIDC provider. Use the same AWS region in both the bootstrap and the workflow.
 - Keep the bootstrap's local state and plan private. The application stack uses the S3 backend and a lock file.
 
 ## 2. Configure GitHub Actions
 
-Create a GitHub environment named production. Restrict it to the default branch (currently master) and set these environment variables:
+Create a GitHub environment named prod. Restrict it to the default branch (currently master) and set these environment variables:
 
 | Variable | Value |
 | --- | --- |

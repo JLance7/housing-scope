@@ -19,7 +19,7 @@ jobs:
     if: github.repository == 'JLance7/housing-scope' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    environment: production
+    environment: prod
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
       STATE_BUCKET: ${{ vars.HOMES_TF_STATE_BUCKET }}

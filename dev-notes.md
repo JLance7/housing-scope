@@ -74,4 +74,4 @@ Existing shared favorites and email watches are kept in storage. Cloud accounts 
 
 ## Deploy from GitHub Actions
 
-HomeScope can be the root of its own repository. Follow the [bootstrap guide](bootstrap/README.md) to apply the IAM role locally and configure the GitHub production environment. The [Deploy HomeScope workflow](.github/workflows/deploy-homescope.yml) builds the Lambda ZIP, signs in to AWS with OIDC, and runs Terraform against the bootstrapped state bucket.
+HomeScope can be the root of its own repository. Follow the [bootstrap guide](bootstrap/README.md) to apply the IAM role locally and configure the GitHub prod environment. The [Deploy HomeScope workflow](.github/workflows/deploy-homescope.yml) builds the Lambda ZIP, signs in to AWS with OIDC, and runs Terraform against the bootstrapped state bucket.

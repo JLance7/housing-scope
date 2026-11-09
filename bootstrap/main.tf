@@ -24,10 +24,10 @@ variable "create_state_bucket" {
 variable "github_subject" {
   type        = string
   description = "Exact GitHub OIDC subject for this repository's production environment."
-  default     = "repo:JLance7@82004410/housing-scope@1450948449:environment:production"
+  default     = "repo:JLance7@82004410/housing-scope@1450948449:environment:prod"
   validation {
-    condition     = can(regex("^repo:[A-Za-z0-9_.@-]+/[A-Za-z0-9_.@-]+:environment:production$", var.github_subject))
-    error_message = "Use the exact repo:OWNER/REPO:environment:production subject or its immutable-ID equivalent."
+    condition     = can(regex("^repo:[A-Za-z0-9_.@-]+/[A-Za-z0-9_.@-]+:environment:prod$", var.github_subject))
+    error_message = "Use the exact repo:OWNER/REPO:environment:prod subject or its immutable-ID equivalent."
   }
 }
 
