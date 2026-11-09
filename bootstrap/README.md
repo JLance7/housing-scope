@@ -4,10 +4,10 @@ Run this one-time Terraform stack on your computer with an AWS operator profile.
 
 ## 1. Apply the bootstrap locally
 
-From the resume-apps repository root in PowerShell:
+From the HomeScope repository root in PowerShell:
 
 ```powershell
-Set-Location .\housing-price-searcher\bootstrap
+Set-Location .\bootstrap
 Copy-Item terraform.tfvars.example terraform.tfvars
 notepad terraform.tfvars
 aws sts get-caller-identity
@@ -31,16 +31,17 @@ Create a GitHub environment named production. Restrict it to the main branch and
 | HOMES_DEPLOY_ROLE_ARN | Bootstrap output deploy_role_arn |
 | HOMES_RUNTIME_BOUNDARY_ARN | Bootstrap output runtime_boundary_arn |
 | HOMES_TF_STATE_BUCKET | Bootstrap output state_bucket |
-| AWS_REGION | Bootstrap AWS region |
+| AWS_REGION | Bootstrap AWS region. The workflow defaults to us-east-2. |
 | HOMES_AUTH_DOMAIN_PREFIX | Unique Cognito domain prefix |
 | HOMES_GOOGLE_CLIENT_ID | Google OAuth web client ID |
 | HOMES_ENABLE_FEED_SYNC | Set to true when you are ready for daily imports |
 | HOMES_RENTCAST_MARKETS | Optional initial city list, for example New York,NY;Chicago,IL |
 | HOMES_ALERT_FROM | Optional SES-verified sender address |
+| HOMES_FEED_URL | Optional URL for a custom listing feed |
 
-Set HOMES_GOOGLE_CLIENT_SECRET as an environment secret. Set HOMES_RENTCAST_API_KEY to enable online listings. Set Google’s authorized callback as described in the [HomeScope README](../README.md#aws-website-and-google-sign-in).
+Set HOMES_GOOGLE_CLIENT_SECRET as an environment secret. Set HOMES_RENTCAST_API_KEY to enable online listings from RentCast. If you use a custom feed that requires a token, add HOMES_FEED_TOKEN. GitHub uses OIDC for AWS access. Set Google’s authorized callback as described in the [developer notes](../dev-notes.md#aws-website-and-google-sign-in).
 
-Commit and push the project to main yourself. In Actions, run **Deploy HomeScope (AWS)** with **plan** first. If the plan is correct, run it again with **apply**. GitHub assumes the deployer role with OIDC. The workflow prints the CloudFront website URL after deployment.
+Push HomeScope as the repository root, with .github/workflows/deploy-homescope.yml, api, bootstrap, infra, scripts, and web at that root. In Actions, run **Deploy HomeScope (AWS)** with **plan** first. If the plan is correct, run it again with **apply**. GitHub assumes the deployer role with OIDC. The workflow prints the CloudFront website URL after deployment.
 
 ## 3. Set your owner access
 

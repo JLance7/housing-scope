@@ -1,6 +1,6 @@
 region = "us-east-2"
 environment = "prod"
-package_path = "../../.build/columbus-homes.zip"
+package_path = "../.build/homescope.zip"
 auth_domain_prefix = "homescope-your-unique-prefix"
 google_client_id = "replace-me.apps.googleusercontent.com"
 enable_feed_sync = false
