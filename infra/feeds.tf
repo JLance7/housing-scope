@@ -29,22 +29,34 @@ variable "enable_feed_sync" {
 }
 
 
-variable "alert_from" {
-  type        = string
-  description = "SES verified sender address for listing alerts."
-  default     = ""
+
+locals {
+  alert_topic_prefix = "${local.name}-watch-"
+  alert_topics_arn   = "arn:${data.aws_partition.current.partition}:sns:${var.region}:${data.aws_caller_identity.current.account_id}:${local.alert_topic_prefix}*"
 }
 
-resource "aws_iam_role_policy" "listing_alert_email" {
-  count = var.alert_from == "" ? 0 : 1
-  role  = aws_iam_role.lambda.id
+resource "aws_iam_role_policy" "watch_topics" {
+  name = "manage-listing-email-watches"
+  role = aws_iam_role.lambda.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { Effect = "Allow", Action = ["sns:CreateTopic", "sns:GetTopicAttributes", "sns:DeleteTopic"], Resource = local.alert_topics_arn },
+      { Effect = "Allow", Action = ["sns:Subscribe"], Resource = local.alert_topics_arn,
+      Condition = { StringEquals = { "sns:Protocol" = "email" } } }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "publish_alerts" {
+  name = "publish-listing-email-watches"
+  role = aws_iam_role.etl.name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect    = "Allow"
-      Action    = ["ses:SendEmail"]
-      Resource  = "*"
-      Condition = { StringEquals = { "ses:FromAddress" = var.alert_from } }
+      Effect   = "Allow"
+      Action   = ["sns:GetTopicAttributes", "sns:Publish"]
+      Resource = local.alert_topics_arn
     }]
   })
 }

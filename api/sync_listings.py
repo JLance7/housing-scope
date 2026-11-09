@@ -59,7 +59,7 @@ def sync_feed(*, city='', scheduled=False):
     token = os.getenv('LISTING_FEED_TOKEN', '')
     if token:
         request.add_header('Authorization', f'Bearer {token}')
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=15) as response:
         data = json.load(response)
     rows = data.get('listings', data) if isinstance(data, dict) else data
     for item in rows:
@@ -72,6 +72,16 @@ def lambda_handler(event, context):
 
     if not TABLE:
         init_db()
+    if event.get('mode') == 'manual':
+        city = event.get('city', '')
+        if not isinstance(city, str) or len(city) > 80:
+            raise ValueError('Invalid manual import city.')
+        return {'updated': sync_feed(city=city)}
+
+    rule = os.getenv('HOMESCOPE_SCHEDULE_RULE_ARN')
+    if (event.get('source') != 'aws.events' or event.get('detail-type') != 'Scheduled Event'
+            or (rule and rule not in event.get('resources', []))):
+        raise ValueError('Unknown ETL trigger.')
     return {'updated': sync_feed(scheduled=True)}
 
 

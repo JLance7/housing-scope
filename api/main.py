@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from api.storage import ROOT, TABLE, all_rows, init_db, monthly_cost, normalize, read_feed_setting, save_row, write_feed_setting
 from api.sync_listings import configured_markets, sync_feed
-from api.alerts import watch_key
+from api.alerts import delete_watch_topic, subscribe_watch, topic_prefix, watch_key
 
 WEB = ROOT / 'web'
 ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', '')
@@ -195,15 +195,18 @@ def clean_email(value):
   raise HTTPException(422,'Enter a valid email address')
  return email
 
+def rentcast_enabled():
+ return bool(os.getenv('RENTCAST_API_KEY','').strip()) or os.getenv('HOMESCOPE_RENTCAST_ENABLED')=='true'
+
 @app.get('/api/feed/status')
 def feed_status(city:str,request:Request):
  auth.identity(request)
  configured=any(name.casefold()==city.casefold() for name,_ in configured_markets())
- rentcast_ready=bool(os.getenv('RENTCAST_API_KEY','').strip())
+ rentcast_ready=rentcast_enabled()
  return {'configured':configured and rentcast_ready,
          'schedule_enabled':configured and bool(read_feed_setting('schedule:'+city.casefold())),
          'runner_enabled':os.getenv('HOMESCOPE_DAILY_ENABLED','false').lower()=='true',
-         'email_enabled':bool(os.getenv('HOMESCOPE_ALERT_FROM','').strip())}
+         'email_enabled':bool(topic_prefix())}
 
 @app.put('/api/feed/schedule')
 def city_schedule(body:CitySchedule,request:Request,token:Optional[str]=Header(None,alias='X-Admin-Token')):
@@ -222,7 +225,7 @@ def subscribe(body:WatchBody,request:Request,token:Optional[str]=Header(None,ali
  require_admin(request,token)
  city=require_market(body.city)
  email=clean_email(auth.verified_email(request,claims) if claims else body.email)
- if not os.getenv('HOMESCOPE_ALERT_FROM','').strip():raise HTTPException(503,'Email sending is not configured')
+ if not topic_prefix():raise HTTPException(503,'Email subscriptions are not configured')
  if body.budget is None and not body.keyword.strip() and body.property_type=='all':
   raise HTTPException(422,'Set a monthly budget, keyword, or listing type')
  key=account_watch_key(city,claims, email)
@@ -231,8 +234,16 @@ def subscribe(body:WatchBody,request:Request,token:Optional[str]=Header(None,ali
  if claims:
   watch.update(subject=claims['sub'],privileged=True)
   if auth.is_owner(claims):write_feed_setting('alert_access:'+claims['sub'],{'enabled':True})
+ previous=read_feed_setting('watch:'+key) or {}
+ try:
+  topic,pending=subscribe_watch(key,email)
+  if previous.get('topic') and previous['topic']!=topic:
+   delete_watch_topic(previous['topic'])
+ except Exception:
+  raise HTTPException(502,'Could not configure the email subscription') from None
+ watch['topic']=topic
  write_feed_setting('watch:'+key,watch)
- return {'subscribed':True}
+ return {'subscribed':True,'confirmation_required':pending}
 
 @app.delete('/api/feed/watch')
 def unsubscribe(body:UnsubscribeBody,request:Request,token:Optional[str]=Header(None,alias='X-Admin-Token')):
@@ -240,16 +251,38 @@ def unsubscribe(body:UnsubscribeBody,request:Request,token:Optional[str]=Header(
  if claims is None:require_admin(request,token)
  email='' if claims else clean_email(body.email)
  key=account_watch_key(body.city.strip(),claims,email)
+ previous=read_feed_setting('watch:'+key) or {}
+ try:
+  delete_watch_topic(previous.get('topic'))
+ except Exception:
+  raise HTTPException(502,'Could not remove the email subscription') from None
  write_feed_setting('watch:'+key,None)
  write_feed_setting('notices:'+key,None)
  return {'subscribed':False}
+
+def invoke_etl(function,city):
+ import boto3
+ from botocore.config import Config
+
+ client=boto3.client('lambda',config=Config(connect_timeout=2,read_timeout=26,retries={'total_max_attempts':1}))
+ response=client.invoke(FunctionName=function,InvocationType='RequestResponse',
+                        Payload=json.dumps({'mode':'manual','city':city}).encode())
+ with response['Payload'] as payload:
+  if response.get('FunctionError'):raise RuntimeError('ETL invocation failed')
+  result=json.load(payload)
+ if type(result.get('updated')) is not int:raise RuntimeError('Invalid ETL response')
+ return result['updated']
 
 @app.post('/api/sync')
 def sync(request:Request,city:str='',header_token:Optional[str]=Header(None,alias='X-Admin-Token')):
  if auth.required():auth.identity(request)
  elif ADMIN_TOKEN or os.getenv('RENTCAST_API_KEY','').strip():require_admin(request,header_token)
- if city and os.getenv('RENTCAST_API_KEY','').strip():city=require_market(city)
- try:return {'updated':sync_feed(city=city)}
+ if city and rentcast_enabled():city=require_market(city)
+ try:
+  function=os.getenv('HOMESCOPE_SYNC_FUNCTION','')
+  if function:return {'updated':invoke_etl(function,city)}
+  if auth.required():raise RuntimeError('ETL function is not configured')
+  return {'updated':sync_feed(city=city)}
  except Exception:raise HTTPException(502,'Feed sync failed. Check the server configuration and provider status.') from None
 @app.get('/')
 def home():return FileResponse(WEB/'index.html')

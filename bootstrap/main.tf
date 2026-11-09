@@ -51,12 +51,15 @@ locals {
   regional_arn = "arn:${local.partition}"
   state_key    = "columbus-homes/prod/terraform.tfstate"
   state_arn    = "arn:${local.partition}:s3:::${var.state_bucket}"
-  runtime_role = "arn:${local.partition}:iam::${local.account}:role/${local.name}-lambda"
-  lambda_arn   = "${local.regional_arn}:lambda:${var.region}:${local.account}:function:${local.name}-*"
-  table_arn    = "${local.regional_arn}:dynamodb:${var.region}:${local.account}:table/${local.name}-listings"
-  logs_arn     = "${local.regional_arn}:logs:${var.region}:${local.account}:log-group:/aws/lambda/${local.name}-*"
-  pool_arn     = "${local.regional_arn}:cognito-idp:${var.region}:${local.account}:userpool/*"
-  oidc_host    = "token.actions.githubusercontent.com"
+  runtime_roles = [
+    "arn:${local.partition}:iam::${local.account}:role/${local.name}-lambda",
+    "arn:${local.partition}:iam::${local.account}:role/${local.name}-etl-lambda",
+  ]
+  lambda_arn = "${local.regional_arn}:lambda:${var.region}:${local.account}:function:${local.name}-*"
+  table_arn  = "${local.regional_arn}:dynamodb:${var.region}:${local.account}:table/${local.name}-listings"
+  logs_arn   = "${local.regional_arn}:logs:${var.region}:${local.account}:log-group:/aws/lambda/${local.name}-*"
+  pool_arn   = "${local.regional_arn}:cognito-idp:${var.region}:${local.account}:userpool/*"
+  oidc_host  = "token.actions.githubusercontent.com"
   oidc_arn = var.create_github_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : (
     "arn:${local.partition}:iam::${local.account}:oidc-provider/${local.oidc_host}"
   )
@@ -121,7 +124,8 @@ resource "aws_iam_policy" "runtime_boundary" {
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = local.logs_arn },
       { Effect = "Allow", Action = ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"], Resource = local.table_arn },
       { Effect = "Allow", Action = ["cognito-idp:ListUsers", "cognito-idp:AdminAddUserToGroup", "cognito-idp:AdminRemoveUserFromGroup"], Resource = local.pool_arn },
-      { Effect = "Allow", Action = ["ses:SendEmail"], Resource = "${local.regional_arn}:ses:${var.region}:${local.account}:identity/*" }
+      { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = "${local.regional_arn}:lambda:${var.region}:${local.account}:function:${local.name}-sync" },
+      { Effect = "Allow", Action = ["sns:CreateTopic", "sns:GetTopicAttributes", "sns:Subscribe", "sns:DeleteTopic", "sns:Publish"], Resource = "${local.regional_arn}:sns:${var.region}:${local.account}:${local.name}-watch-*" }
     ]
   })
 }
@@ -146,12 +150,12 @@ resource "aws_iam_role_policy" "runtime_iam" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      { Effect = "Allow", Action = ["iam:CreateRole", "iam:PutRolePermissionsBoundary"], Resource = local.runtime_role,
+      { Effect = "Allow", Action = ["iam:CreateRole", "iam:PutRolePermissionsBoundary"], Resource = local.runtime_roles,
       Condition = { ArnEquals = { "iam:PermissionsBoundary" = aws_iam_policy.runtime_boundary.arn } } },
-      { Effect = "Allow", Action = ["iam:GetRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateAssumeRolePolicy", "iam:TagRole", "iam:UntagRole", "iam:ListRoleTags", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole", "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"], Resource = local.runtime_role },
-      { Effect = "Allow", Action = ["iam:AttachRolePolicy", "iam:DetachRolePolicy"], Resource = local.runtime_role,
+      { Effect = "Allow", Action = ["iam:GetRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateAssumeRolePolicy", "iam:TagRole", "iam:UntagRole", "iam:ListRoleTags", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole", "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"], Resource = local.runtime_roles },
+      { Effect = "Allow", Action = ["iam:AttachRolePolicy", "iam:DetachRolePolicy"], Resource = local.runtime_roles,
       Condition = { ArnEquals = { "iam:PolicyARN" = "arn:${local.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole" } } },
-      { Effect = "Allow", Action = ["iam:PassRole"], Resource = local.runtime_role,
+      { Effect = "Allow", Action = ["iam:PassRole"], Resource = local.runtime_roles,
       Condition = { StringEquals = { "iam:PassedToService" = "lambda.amazonaws.com" } } }
     ]
   })

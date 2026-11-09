@@ -1,4 +1,4 @@
-"""Send a digest for newly matched listings after a scheduled import."""
+"""Manage private SNS email watches and publish scheduled match digests."""
 from hashlib import sha256
 import logging
 import os
@@ -12,6 +12,32 @@ def watch_key(city, email):
     return sha256(f'{city.casefold()}|{email}'.encode()).hexdigest()
 
 
+def topic_prefix():
+    return os.getenv('HOMESCOPE_SNS_TOPIC_PREFIX', '').strip()
+
+
+def sns_client():
+    import boto3
+
+    return boto3.client('sns')
+
+
+def subscribe_watch(key, email):
+    suffix = sha256(f'{key}|{email}'.encode()).hexdigest()
+    client = sns_client()
+    topic = client.create_topic(Name=topic_prefix() + suffix)['TopicArn']
+    attributes = client.get_topic_attributes(TopicArn=topic)['Attributes']
+    confirmed = int(attributes.get('SubscriptionsConfirmed', '0')) > 0
+    if not confirmed and not int(attributes.get('SubscriptionsPending', '0')):
+        client.subscribe(TopicArn=topic, Protocol='email', Endpoint=email)
+    return topic, not confirmed
+
+
+def delete_watch_topic(topic):
+    if topic:
+        sns_client().delete_topic(TopicArn=topic)
+
+
 def matches(watch, listing):
     searchable = f"{listing['title']} {listing['address']}".casefold()
     return (watch['city'].casefold() == listing['area'].casefold()
@@ -21,14 +47,15 @@ def matches(watch, listing):
 
 
 def send_matches(listings):
-    sender = os.getenv('HOMESCOPE_ALERT_FROM', '').strip()
-    if not sender:
+    if not topic_prefix():
         return
-    import boto3
 
-    client = boto3.client('ses')
+    client = sns_client()
     notices = {row['key']: row['ids'] for row in feed_settings('notices:')}
     for watch in feed_settings('watch:'):
+        topic = watch.get('topic')
+        if not topic:
+            continue
         if os.getenv('HOMESCOPE_AUTH_REQUIRED') == 'true':
             subject = watch.get('subject')
             if not subject or not watch.get('privileged'):
@@ -46,11 +73,11 @@ def send_matches(listings):
             lines.append(f'Plus {len(new) - 10} more. See HomeScope for the full results.')
         body = '\n'.join(lines) + '\n\nManage or unsubscribe from this watch in HomeScope.'
         try:
-            client.send_email(
-                Source=sender, Destination={'ToAddresses': [watch['email']]},
-                Message={'Subject': {'Data': f"HomeScope matches in {watch['city']}", 'Charset': 'UTF-8'},
-                         'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}}},
-            )
+            attributes = client.get_topic_attributes(TopicArn=topic)['Attributes']
+            if not int(attributes.get('SubscriptionsConfirmed', '0')):
+                continue
+            client.publish(TopicArn=topic, Subject=f"HomeScope listing matches",
+                           Message=f"New matches in {watch['city']}\n\n{body}")
         except Exception as exc:
             log.warning('HomeScope alert delivery failed (%s)', type(exc).__name__)
             continue

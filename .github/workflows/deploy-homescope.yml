@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.repository == 'JLance7/housing-scope' && github.ref == 'refs/heads/main'
+    if: github.repository == 'JLance7/housing-scope' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -34,7 +34,6 @@ jobs:
       TF_VAR_google_client_secret: ${{ secrets.HOMES_GOOGLE_CLIENT_SECRET }}
       TF_VAR_rentcast_api_key: ${{ secrets.HOMES_RENTCAST_API_KEY }}
       TF_VAR_rentcast_markets: ${{ vars.HOMES_RENTCAST_MARKETS || 'New York,NY' }}
-      TF_VAR_alert_from: ${{ vars.HOMES_ALERT_FROM }}
       TF_VAR_listing_feed_url: ${{ vars.HOMES_FEED_URL }}
       TF_VAR_listing_feed_token: ${{ secrets.HOMES_FEED_TOKEN }}
       TF_VAR_enable_feed_sync: ${{ vars.HOMES_ENABLE_FEED_SYNC || 'false' }}

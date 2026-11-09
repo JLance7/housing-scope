@@ -8,7 +8,7 @@ From the HomeScope repository root in PowerShell:
 
 ```powershell
 Set-Location .\bootstrap
-Copy-Item terraform.tfvars.example terraform.tfvars
+if (-not (Test-Path terraform.tfvars)) { Copy-Item terraform.tfvars.example terraform.tfvars }
 notepad terraform.tfvars
 aws sts get-caller-identity
 terraform init
@@ -24,7 +24,7 @@ terraform output
 
 ## 2. Configure GitHub Actions
 
-Create a GitHub environment named production. Restrict it to the main branch and set these environment variables:
+Create a GitHub environment named production. Restrict it to the default branch (currently master) and set these environment variables:
 
 | Variable | Value |
 | --- | --- |
@@ -36,10 +36,9 @@ Create a GitHub environment named production. Restrict it to the main branch and
 | HOMES_GOOGLE_CLIENT_ID | Google OAuth web client ID |
 | HOMES_ENABLE_FEED_SYNC | Set to true when you are ready for daily imports |
 | HOMES_RENTCAST_MARKETS | Optional initial city list, for example New York,NY;Chicago,IL |
-| HOMES_ALERT_FROM | Optional SES-verified sender address |
 | HOMES_FEED_URL | Optional URL for a custom listing feed |
 
-Set HOMES_GOOGLE_CLIENT_SECRET as an environment secret. Set HOMES_RENTCAST_API_KEY to enable online listings from RentCast. If you use a custom feed that requires a token, add HOMES_FEED_TOKEN. GitHub uses OIDC for AWS access. Set Google’s authorized callback as described in the [developer notes](../dev-notes.md#aws-website-and-google-sign-in).
+Set HOMES_GOOGLE_CLIENT_SECRET as an environment secret. Amazon SNS handles alert delivery, so there is no sender-address variable. Recipients confirm each watch by email. Set HOMES_RENTCAST_API_KEY to enable online listings from RentCast. If you use a custom feed that requires a token, add HOMES_FEED_TOKEN. GitHub uses OIDC for AWS access. Set Google’s authorized callback as described in the [developer notes](../dev-notes.md#aws-website-and-google-sign-in).
 
 Push HomeScope as the repository root, with .github/workflows/deploy-homescope.yml, api, bootstrap, infra, scripts, and web at that root. In Actions, run **Deploy HomeScope (AWS)** with **plan** first. If the plan is correct, run it again with **apply**. GitHub assumes the deployer role with OIDC. The workflow prints the CloudFront website URL after deployment.
 

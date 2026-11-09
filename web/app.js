@@ -156,7 +156,9 @@ $('#watchForm').onsubmit = async event => {
       city, email, budget: budget ? Number(budget) : null,
       keyword: $('#watchKeyword').value, property_type: $('#watchType').value,
     });
-    if (result) $('#feedAction').textContent = 'Email watch saved for ' + city + '. Alerts are sent after scheduled imports.';
+    if (result) $('#feedAction').textContent = result.confirmation_required
+      ? 'Email watch saved for ' + city + '. Open the Amazon SNS email and confirm your subscription.'
+      : 'Email watch saved for ' + city + '. Alerts are sent after scheduled imports.';
   } catch (error) {
     $('#feedAction').textContent = error.message;
   }

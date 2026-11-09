@@ -11,6 +11,19 @@ Use **Terraform and GitHub Actions** for the hosted HomeScope website. The deplo
 
 ## Daily online listings with RentCast
 
+[Housing listings ETL diagram (PNG)](docs/listings-etl-architecture.png)
+
+### AWS function permissions
+
+EventBridge invokes the dedicated ETL Lambda at 11:00 UTC when the schedule is enabled. FastAPI handles authenticated manual refreshes by invoking that same function with a manual request. The ETL function chooses the appropriate request budget and sends email only for scheduled imports.
+
+- The web Lambda can read and write application records in DynamoDB, manage authorized Cognito groups, and invoke only the ETL function. It can manage private SNS watch topics and email subscriptions. The web Lambda has no SNS publish permission or listing-provider credentials.
+- The ETL Lambda can read and update the listings table and publish matching alerts to private SNS watch topics. It has no Cognito group permissions or public API Gateway route.
+- Each Lambda can write to its own CloudWatch log group. The EventBridge rule can invoke only the ETL function.
+
+If the IAM bootstrap is already applied, reapply it locally before running the deployment workflow. The update lets GitHub manage the new ETL role and adds the narrow ETL invoke permission to the runtime boundary.
+
+
 1. Create a key on the [RentCast Developer plan](https://developers.rentcast.io/reference/getting-started-guide). Copy the local settings template with `Copy-Item .env.example .env` if you do not already have a local settings file.
 2. Set `RENTCAST_API_KEY` and set `ADMIN_TOKEN` to a long random value. Leave `RENTCAST_MARKETS="New York,NY"` for the default. Add markets with semicolons, for example `RENTCAST_MARKETS="New York,NY;Chicago,IL"`. Use the same city names in the browser picker.
 3. In HomeScope choose a city and click **Get updated listings** for a manual import. Alternatively, run a manual import from the project directory.
@@ -29,7 +42,7 @@ HomeScope shows when it fetched a RentCast listing. Results are a sample of prov
 
 **AWS daily run.** EventBridge invokes `api.sync_listings.lambda_handler` at 11:00 UTC daily. For Terraform, set `TF_VAR_rentcast_api_key` and optionally `TF_VAR_rentcast_markets`, then set `enable_feed_sync = true`. In GitHub Actions use the `HOMES_RENTCAST_API_KEY` environment secret, set the GitHub variable `HOMES_ENABLE_FEED_SYNC=true`, and use the optional `HOMES_RENTCAST_MARKETS` variable. The API and scheduled job share the on-demand DynamoDB table.
 
-**Email watches.** Verify a sender identity in [Amazon SES](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html). In the SES sandbox, verify each recipient as well. Set HOMESCOPE_ALERT_FROM in local .env and configure AWS credentials and a region, or set Terraform TF_VAR_alert_from or GitHub's HOMES_ALERT_FROM variable. Use **Subscribe or update** with your own email address and a maximum estimated monthly cost, address keyword, or listing type. When you specify multiple criteria, a listing must match them all. The scheduled job sends a digest of newly matched listings per watch. **Unsubscribe** removes the watch for that email and city. In the Terraform deployment, only the owner and approved users can create watches. Alerts use the verified Google email tied to the account. The local setup uses the admin token and a manually entered email.
+**Email watches.** Save a watch and confirm the email from [Amazon SNS](https://docs.aws.amazon.com/sns/latest/dg/sns-email-notifications.html). The deployed app uses your verified Google email and creates a private topic for that watch. Only confirmed subscriptions receive scheduled matches. Use **Unsubscribe** in HomeScope to remove the watch and topic. Existing email watches from older versions need to be saved again to create their SNS subscriptions. Local testing requires AWS credentials and HOMESCOPE_SNS_TOPIC_PREFIX.
 
 ## Data sources
 The app does not scrape Zillow or bypass listing access controls. Use an authorized MLS/vendor feed, permitted public API, or CSV export. Set `LISTING_FEED_URL` and optional `LISTING_FEED_TOKEN` in `.env`; the feed must return JSON array or `{ "listings": [...] }` with fields documented in `seed_listings.json`. Import CSV by POSTing `{ "csv": "..." }` to `/api/import`. The sync route accepts `X-Admin-Token` when `ADMIN_TOKEN` is set.
@@ -38,6 +51,8 @@ The app does not scrape Zillow or bypass listing access controls. Use an authori
 For homes it estimates principal and interest for a 30-year loan at 10% down plus listing taxes, insurance, and HOA. Set `MORTGAGE_RATE` for the assumed annual rate. Apartments use rent plus monthly fees. Estimates are comparisons, not lender quotes.
 
 ## AWS website and Google sign-in
+
+[Authentication architecture diagram (PNG)](docs/authentication-architecture.png)
 
 The Terraform deployment serves the website from a private S3 bucket through CloudFront. The same CloudFront URL forwards /api/* to API Gateway without caching those responses. The HTTP API verifies Cognito access tokens. The first Google sign-in creates the account. Favorites and email watches are private to that account, and emails go to its verified Google address. Any signed-in user can add online locations and request a manual refresh. Only the owner and approved users can manage automatic schedules or start email watches. Only the owner can grant or revoke that access. Revoking access also stops the recipient’s scheduled emails.
 
