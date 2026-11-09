@@ -66,8 +66,8 @@ resource "aws_cognito_user_pool_client" "website" {
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email"]
   supported_identity_providers         = [aws_cognito_identity_provider.google.provider_name]
-  callback_urls                        = ["https://${aws_cloudfront_distribution.website.domain_name}/"]
-  logout_urls                          = ["https://${aws_cloudfront_distribution.website.domain_name}/"]
+  callback_urls                        = local.website_auth_urls
+  logout_urls                          = local.website_auth_urls
   enable_token_revocation              = true
   access_token_validity                = 15
   token_validity_units { access_token = "minutes" }

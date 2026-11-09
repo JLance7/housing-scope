@@ -29,6 +29,8 @@ jobs:
       TF_VAR_runtime_boundary_arn: ${{ vars.HOMES_RUNTIME_BOUNDARY_ARN }}
       DEPLOY_ROLE_ARN: ${{ vars.HOMES_DEPLOY_ROLE_ARN }}
       TF_IN_AUTOMATION: 'true'
+      TF_VAR_acm_certificate_arn: ${{ vars.HOMES_ACM_CERTIFICATE_ARN }}
+      TF_VAR_custom_domain_name: ${{ vars.HOMES_CUSTOM_DOMAIN || 'homescope.joshualanctot.com' }}
       TF_VAR_auth_domain_prefix: ${{ vars.HOMES_AUTH_DOMAIN_PREFIX }}
       TF_VAR_google_client_id: ${{ vars.HOMES_GOOGLE_CLIENT_ID }}
       TF_VAR_google_client_secret: ${{ secrets.HOMES_GOOGLE_CLIENT_SECRET }}

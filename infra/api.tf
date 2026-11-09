@@ -55,6 +55,7 @@ resource "aws_lambda_permission" "website_api" {
   source_arn    = "${aws_apigatewayv2_api.website.execution_arn}/*/*/api/*"
 }
 
-output "app_url" { value = "https://${aws_cloudfront_distribution.website.domain_name}/" }
+output "app_url" { value = local.website_url }
+output "cloudfront_url" { value = local.default_website_url }
 output "api_url" { value = aws_apigatewayv2_api.website.api_endpoint }
 

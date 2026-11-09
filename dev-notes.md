@@ -77,3 +77,12 @@ Existing shared favorites and email watches are kept in storage. Cloud accounts 
 ## Deploy from GitHub Actions
 
 HomeScope can be the root of its own repository. Follow the [bootstrap guide](bootstrap/README.md) to apply the IAM role locally and configure the GitHub prod environment. The [Deploy HomeScope workflow](.github/workflows/deploy-homescope.yml) builds the Lambda ZIP, signs in to AWS with OIDC, and runs Terraform against the bootstrapped state bucket.
+
+
+## Custom website hostname
+
+For homescope.joshualanctot.com, create or select an ACM public certificate in us-east-1 that covers the hostname. If ACM asks for DNS validation, add its validation CNAME and wait for the certificate to be Issued. Set HOMES_ACM_CERTIFICATE_ARN in the GitHub prod environment. The Terraform workflow attaches the certificate, adds the alternate domain to the existing CloudFront distribution, and keeps both the custom URL and the CloudFront URL on the Cognito callback and sign-out lists. The existing Google-to-Cognito redirect stays the same.
+
+Add a separate routing CNAME at your DNS provider. Use homescope as the record name and d14d0lsjc6sh0n.cloudfront.net as the target. Use a hostname with no scheme or trailing slash. The deploy role already manages the distribution and Cognito client. Certificate creation and DNS remain operator steps.
+
+[AWS CloudFront custom domain instructions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CreatingCNAME.html)

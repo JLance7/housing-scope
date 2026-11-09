@@ -18,6 +18,11 @@ resource "aws_cloudfront_origin_access_control" "website" {
 }
 
 locals {
+  custom_domain_enabled = var.acm_certificate_arn != ""
+  default_website_url   = "https://${aws_cloudfront_distribution.website.domain_name}/"
+  website_url           = local.custom_domain_enabled ? "https://${var.custom_domain_name}/" : local.default_website_url
+  website_auth_urls     = distinct([local.default_website_url, local.website_url])
+
   # AWS-managed CloudFront policy IDs are fixed. Use them directly so planning
   # does not require permission to list or read managed policies.
   cloudfront_static_cache_policy = "658327ea-f89d-4fab-a63d-7e88639e58f6"
@@ -47,6 +52,7 @@ resource "aws_cloudfront_response_headers_policy" "website" {
 resource "aws_cloudfront_distribution" "website" {
   enabled             = true
   default_root_object = "index.html"
+  aliases             = local.custom_domain_enabled ? [var.custom_domain_name] : []
   price_class         = "PriceClass_100"
 
   origin {
@@ -90,7 +96,12 @@ resource "aws_cloudfront_distribution" "website" {
   restrictions {
     geo_restriction { restriction_type = "none" }
   }
-  viewer_certificate { cloudfront_default_certificate = true }
+  viewer_certificate {
+    cloudfront_default_certificate = !local.custom_domain_enabled
+    acm_certificate_arn            = local.custom_domain_enabled ? var.acm_certificate_arn : null
+    ssl_support_method             = local.custom_domain_enabled ? "sni-only" : null
+    minimum_protocol_version       = local.custom_domain_enabled ? "TLSv1.2_2021" : null
+  }
 }
 
 resource "aws_s3_bucket_policy" "website" {

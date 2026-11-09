@@ -30,7 +30,7 @@
   function showAccount(account, message) {
     signIn.hidden = Boolean(account);
     signOut.hidden = !account;
-    status.textContent = message || (account ? 'Signed in as ' + account.email : 'Sign in with Google to save locations and get updated listings in other cities.');
+    status.textContent = message || (account ? 'Signed in as ' + account.email : '');
   }
 
   function clearToken() {

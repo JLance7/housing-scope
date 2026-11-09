@@ -33,6 +33,8 @@ Create a GitHub environment named prod. Restrict it to the default branch (curre
 | HOMES_TF_STATE_BUCKET | Bootstrap output state_bucket |
 | AWS_REGION | Bootstrap AWS region. The workflow defaults to us-east-2. |
 | HOMES_AUTH_DOMAIN_PREFIX | Unique Cognito domain prefix |
+| HOMES_ACM_CERTIFICATE_ARN | Optional issued ACM certificate in us-east-1 for the website hostname |
+| HOMES_CUSTOM_DOMAIN | Optional hostname override. Defaults to homescope.joshualanctot.com when a certificate is supplied. |
 | HOMES_GOOGLE_CLIENT_ID | Google OAuth web client ID |
 | HOMES_ENABLE_FEED_SYNC | Set to true to enable daily imports and hourly email checks |
 | HOMES_RENTCAST_MARKETS | Optional initial city list, for example White Plains,NY;Chicago,IL |
