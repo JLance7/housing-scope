@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: HomeScope listings API and low-traffic scheduled feed sync
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 512
+Parameters:
+  AlertFrom:
+    Type: String
+    Default: ''
+    Description: Verified SES sender address for listing alerts
+Conditions:
+  HasAlertSender: !Not [!Equals [!Ref AlertFrom, '']]
+Resources:
+  ListingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-listings'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: id, AttributeType: S}]
+      KeySchema: [{AttributeName: id, KeyType: HASH}]
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: api.main.handler
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref ListingTable
+          HOMESCOPE_DAILY_ENABLED: 'true'
+          HOMESCOPE_ALERT_FROM: !Ref AlertFrom
+      Policies: [{DynamoDBCrudPolicy: {TableName: !Ref ListingTable}}]
+      Events:
+        Api: {Type: Api, Properties: {Path: /{proxy+}, Method: ANY}}
+        Root: {Type: Api, Properties: {Path: /, Method: ANY}}
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: api.sync_listings.lambda_handler
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref ListingTable
+          HOMESCOPE_ALERT_FROM: !Ref AlertFrom
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref ListingTable}
+        - !If
+          - HasAlertSender
+          - Statement:
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    ses:FromAddress: !Ref AlertFrom
+          - !Ref AWS::NoValue
+      Events: {Daily: {Type: Schedule, Properties: {Schedule: cron(0 11 * * ? *)}}}
+Outputs:
+  ApiUrl: {Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'}

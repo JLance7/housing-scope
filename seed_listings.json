@@ -1,0 +1,42 @@
+[
+  {
+    "id": "nyc-01",
+    "title": "Astoria one-bedroom",
+    "area": "New York",
+    "property_type": "Apartment",
+    "address": "Astoria, Queens",
+    "price": 2350,
+    "rent": 2350,
+    "beds": 1,
+    "baths": 1,
+    "sqft": 650,
+    "source": "Sample data"
+  },
+  {
+    "id": "nyc-02",
+    "title": "Brooklyn two-bedroom",
+    "area": "New York",
+    "property_type": "Apartment",
+    "address": "Sunset Park, Brooklyn",
+    "price": 2800,
+    "rent": 2800,
+    "beds": 2,
+    "baths": 1,
+    "sqft": 850,
+    "source": "Sample data"
+  },
+  {
+    "id": "nyc-03",
+    "title": "Bronx brick rowhouse",
+    "area": "New York",
+    "property_type": "House",
+    "address": "Pelham Bay, Bronx",
+    "price": 585000,
+    "beds": 3,
+    "baths": 2,
+    "sqft": 1450,
+    "taxes_yearly": 5400,
+    "insurance_yearly": 1900,
+    "source": "Sample data"
+  }
+]

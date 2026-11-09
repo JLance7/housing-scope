@@ -1,0 +1,28 @@
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+
+# Python and local storage
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+
+# Terraform working files and secrets
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+backend.hcl
+crash.log
+crash.*.log
+
+# Build outputs
+.build/
+.aws-sam/
+node_modules/

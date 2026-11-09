@@ -1,0 +1,5 @@
+region                      = "us-east-2"
+state_bucket                = "replace-with-a-unique-homescope-state-bucket"
+create_state_bucket         = true
+github_subject              = "repo:JLance7@82004410/housing-scope@1450948449:environment:production"
+create_github_oidc_provider = false

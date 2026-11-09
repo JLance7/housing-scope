@@ -1,0 +1,7 @@
+region = "us-east-2"
+environment = "prod"
+package_path = "../../.build/columbus-homes.zip"
+auth_domain_prefix = "homescope-your-unique-prefix"
+google_client_id = "replace-me.apps.googleusercontent.com"
+enable_feed_sync = false
+# Set TF_VAR_google_client_secret and any feed keys outside this file.

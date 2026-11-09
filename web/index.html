@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HomeScope | Home Affordability Explorer</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+<header class="topbar"><a class="brand" href="#"><span class="brand-mark">⌂</span><span>HomeScope<span class="brand-sub" id="currentCity">NEW YORK</span></span></a><nav><a class="active" href="#search">Explore</a><a href="#areas">Areas</a><a href="#saved">Saved <span id="savedCount" class="nav-count">0</span></a></nav><div class="account-buttons"><button class="clear-button" id="signIn" hidden>Sign in with Google</button><button class="clear-button" id="signOut" hidden>Sign out</button></div></header>
+<main class="page">
+<section class="hero"><div><p class="eyebrow">A clearer way to plan your next move</p><h1>Find a place that fits<br><em>your monthly budget.</em></h1><p class="intro">Compare apartments and homes in your chosen city by estimated monthly cost.</p></div><div class="hero-note"><span class="note-icon">✦</span><div><b>Budget-first search</b><small>See what fits before you tour.</small></div></div></section>
+<p class="account-status" id="accountStatus" role="status"></p>
+<section class="highlights" aria-labelledby="highlightsTitle">
+  <p class="eyebrow">How HomeScope works</p>
+  <h2 id="highlightsTitle">What makes HomeScope different?</h2>
+  <div class="highlight-grid">
+    <article><h3>Start with the monthly cost</h3><p>Compare rent and estimated ownership costs side by side. Home estimates include mortgage payments and any taxes, insurance, and HOA fees available for the listing.</p></article>
+    <article><h3>Watch for what fits</h3><p>Set a monthly budget, address keyword, or listing type. In cities with scheduled updates, HomeScope can email you when an import finds new matches.</p></article>
+    <article><h3>See how recent the results are</h3><p>Online listings show when HomeScope checked them. Demo listings are labeled so you can tell them apart from live data.</p></article>
+  </div>
+</section>
+<section class="search-panel" id="search"><div class="filter-heading"><div><h2>Explore places</h2><p>Online listings and imports, with sample data where available</p></div><button class="clear-button" id="clearFilters">Reset filters</button></div><div class="filters"><label>Monthly budget <div class="range-row"><input id="budget" type="range" min="900" max="4200" step="100" value="2400"><strong id="budgetValue">$2,400</strong></div></label><label>Property type<select id="type"><option value="all">Homes & apartments</option><option value="House">Houses</option><option value="Apartment">Apartments</option></select></label><label>City<select id="area"><option>New York</option></select></label><label>Search<input id="searchText" type="search" placeholder="Neighborhood or listing name"></label></div>
+<div class="city-tools">
+<form id="addCity"><label for="cityName">Add a city</label><input id="cityName" maxlength="80" required placeholder="e.g. Chicago"><button class="clear-button" type="submit">Add city</button></form>
+<label>Import listings CSV <input id="csvFile" type="file" accept=".csv,text/csv"></label>
+<button class="clear-button" id="syncFeed" type="button">Get updated listings</button>
+</div>
+<details class="feed-settings">
+<summary>Daily updates and email alerts</summary>
+<p id="feedStatus" role="status"></p>
+<form id="marketForm" hidden>
+  <label>City for online listings <input id="marketCity" maxlength="80" required placeholder="e.g. Chicago"></label>
+  <label>State abbreviation <input id="marketState" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" required placeholder="IL"></label>
+  <button class="clear-button">Add online location</button>
+</form>
+<label><input type="checkbox" id="scheduleCity" disabled> Include this city in daily sync</label>
+<form id="watchForm">
+<label>Email <input id="watchEmail" type="email" maxlength="254" required autocomplete="email"></label>
+<label>Max estimated monthly cost <input id="watchBudget" type="number" min="1" max="100000" placeholder="Optional"></label>
+<label>Address keyword <input id="watchKeyword" maxlength="100" placeholder="Optional"></label>
+<label>Listing type <select id="watchType"><option value="all">Either</option><option value="House">For sale</option><option value="Apartment">For rent</option></select></label>
+<p>Email watches are available to the owner and approved users. Set a budget, keyword, or listing type. Alerts only run for cities included in daily sync.</p>
+<button class="clear-button" id="watchSave" disabled>Subscribe or update</button>
+<button class="clear-button" id="watchRemove" type="button">Unsubscribe</button>
+</form>
+</details>
+<details class="feed-settings" id="ownerPanel" hidden>
+<summary>Manage sync-admin access</summary>
+<form id="adminForm">
+  <label>Verified Google email <input id="adminEmail" type="email" maxlength="254" required></label>
+  <button class="clear-button" value="grant">Grant sync access</button>
+  <button class="clear-button" value="revoke">Remove sync access</button>
+</form>
+<p id="adminStatus" role="status"></p>
+</details>
+<p class="muted" id="feedAction" role="status"></p>
+<p id="cityStatus" class="muted" role="status"></p></section>
+<section class="stats"><article><span>Matching places</span><b id="count">0</b><small>Homes and apartments</small></article><article><span>Within your budget</span><b id="affordableCount">0</b><small>Estimated monthly cost</small></article><article><span>Typical monthly cost</span><b id="avgPayment">—</b><small>For matching listings</small></article></section>
+<div class="content-grid"><section class="results"><div class="section-head"><div><p class="eyebrow">CURATED FOR YOUR BUDGET</p><h2>Places to explore</h2></div><select id="sort"><option value="cost">Lowest monthly cost</option><option value="price">Lowest listing price</option><option value="change">Largest price drop</option></select></div><div class="listing-grid" id="listingGrid"></div><div class="empty hidden" id="empty">No listings match these filters. Try a different filter or import listings for this city.</div><p class="disclaimer">Monthly costs are estimates, not quotes. Verify prices, taxes, fees, and availability with the provider.</p></section>
+<aside class="area-card" id="areas"><div class="section-head"><div><p class="eyebrow">WHERE YOUR BUDGET GOES FURTHER</p><h2>Area snapshot</h2></div><span class="spark">↗</span></div><p class="muted">Typical estimated monthly cost in the selected city.</p><div id="areaBars" class="area-bars"></div><div class="difference"><span class="spark">✦</span><p><b>Look beyond the listing price.</b><br>Compare areas by estimated monthly cost and recent price changes.</p></div><div class="demo-tag">✦ Import authorized listing data</div></aside></div>
+</main><footer>HomeScope · Affordability estimates are informational; verify listing details with providers.</footer><script src="auth-config.js"></script><script src="auth.js"></script><script src="app.js"></script></body></html>
