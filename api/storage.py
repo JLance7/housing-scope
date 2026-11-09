@@ -18,7 +18,13 @@ def db():
  c=sqlite3.connect(DB);c.row_factory=sqlite3.Row;return c
 def init_db():
  with closing(db()) as c:
-  c.execute("CREATE TABLE IF NOT EXISTS listings(id TEXT PRIMARY KEY,title TEXT NOT NULL,area TEXT NOT NULL,property_type TEXT NOT NULL,address TEXT,price REAL NOT NULL,rent REAL,beds REAL,baths REAL,sqft INTEGER,hoa_monthly REAL DEFAULT 0,taxes_yearly REAL DEFAULT 0,insurance_yearly REAL DEFAULT 0,change_30d REAL DEFAULT 0,source TEXT,source_url TEXT,favorite INTEGER DEFAULT 0,updated_at TEXT DEFAULT CURRENT_TIMESTAMP)");c.commit()
+  c.execute("CREATE TABLE IF NOT EXISTS listings(id TEXT PRIMARY KEY,title TEXT NOT NULL,area TEXT NOT NULL,property_type TEXT NOT NULL,address TEXT,price REAL NOT NULL,rent REAL,beds REAL,baths REAL,sqft INTEGER,hoa_monthly REAL DEFAULT 0,taxes_yearly REAL DEFAULT 0,insurance_yearly REAL DEFAULT 0,change_30d REAL DEFAULT 0,source TEXT,source_url TEXT,favorite INTEGER DEFAULT 0,updated_at TEXT DEFAULT CURRENT_TIMESTAMP,neighborhood TEXT)");c.commit()
+  if 'neighborhood' not in {row['name'] for row in c.execute('PRAGMA table_info(listings)')}:
+   try:
+    c.execute('ALTER TABLE listings ADD COLUMN neighborhood TEXT')
+    c.commit()
+   except sqlite3.OperationalError as exc:
+    if 'duplicate column name' not in str(exc):raise
 def dynamo_table():
  if not TABLE:return None
  import boto3
@@ -45,7 +51,7 @@ def save_row(item, *, keep_favorite=False):
   else:
    t.put_item(Item=values)
   return
- fields=['id','title','area','property_type','address','price','rent','beds','baths','sqft','hoa_monthly','taxes_yearly','insurance_yearly','change_30d','source','source_url','favorite']
+ fields=['id','title','area','property_type','address','price','rent','beds','baths','sqft','hoa_monthly','taxes_yearly','insurance_yearly','change_30d','source','source_url','favorite','neighborhood']
  if 'updated_at' in item:fields.append('updated_at')
  values=[item.get(k) for k in fields]
  updates=[k for k in fields if k!='id' and (k!='favorite' or not keep_favorite)]
@@ -54,15 +60,18 @@ def save_row(item, *, keep_favorite=False):
 
 def normalize(d):
  typ=str(d.get('property_type') or d.get('type') or 'House').title();typ='Apartment' if typ.lower() in ('apartment','rental','rent') else 'House';identity=str(d.get('id') or d.get('listing_id') or d.get('url') or f"{d.get('title','home')}|{d.get('address','')}|{d.get('city') or d.get('area','')}")
- return {'id':identity,'title':str(d.get('title') or 'Listing'),'area':str(d.get('city') or d.get('area') or 'Unspecified'),'property_type':typ,'address':str(d.get('address') or ''),'price':float(d.get('price') or d.get('sale_price') or d.get('rent') or 0),'rent':float(d.get('rent') or 0) if typ=='Apartment' else None,'beds':float(d.get('beds') or d.get('bedrooms') or 0),'baths':float(d.get('baths') or d.get('bathrooms') or 0),'sqft':int(float(d.get('sqft') or 0)),'hoa_monthly':float(d.get('hoa_monthly') or d.get('hoa') or 0),'taxes_yearly':float(d.get('taxes_yearly') or 0),'insurance_yearly':float(d.get('insurance_yearly') or 0),'change_30d':float(d.get('change_30d') or 0),'source':str(d.get('source') or 'Imported feed'),'source_url':str(d.get('source_url') or d.get('url') or ''),'favorite':int(bool(d.get('favorite',False)))}
+ return {'id':identity,'title':str(d.get('title') or 'Listing'),'area':str(d.get('city') or d.get('area') or 'Unspecified'),'property_type':typ,'address':str(d.get('address') or ''),'neighborhood':' '.join(str(d.get('neighborhood') or '').split())[:80],'price':float(d.get('price') or d.get('sale_price') or d.get('rent') or 0),'rent':float(d.get('rent') or 0) if typ=='Apartment' else None,'beds':float(d.get('beds') or d.get('bedrooms') or 0),'baths':float(d.get('baths') or d.get('bathrooms') or 0),'sqft':int(float(d.get('sqft') or 0)),'hoa_monthly':float(d.get('hoa_monthly') or d.get('hoa') or 0),'taxes_yearly':float(d.get('taxes_yearly') or 0),'insurance_yearly':float(d.get('insurance_yearly') or 0),'change_30d':float(d.get('change_30d') or 0),'source':str(d.get('source') or 'Imported feed'),'source_url':str(d.get('source_url') or d.get('url') or ''),'favorite':int(bool(d.get('favorite',False)))}
 
 def reserve_rentcast_day(day):
+ return reserve_scheduled_slot(rentcast.MARKER,day)
+
+def reserve_scheduled_slot(marker,slot):
  t=dynamo_table()
  if t:
   try:
-   t.put_item(Item={'id':rentcast.MARKER,'sync_day':day},
+   t.put_item(Item={'id':marker,'sync_day':slot},
               ConditionExpression='attribute_not_exists(id) OR sync_day < :day',
-              ExpressionAttributeValues={':day':day})
+              ExpressionAttributeValues={':day':slot})
   except t.meta.client.exceptions.ConditionalCheckFailedException:
    return False
   return True
@@ -70,7 +79,7 @@ def reserve_rentcast_day(day):
   c.execute('CREATE TABLE IF NOT EXISTS sync_state (provider TEXT PRIMARY KEY, day TEXT NOT NULL)')
   result=c.execute(
    'INSERT INTO sync_state VALUES (?, ?) ON CONFLICT(provider) DO UPDATE SET day=excluded.day '
-   'WHERE sync_state.day < excluded.day', (rentcast.SOURCE,day))
+   'WHERE sync_state.day < excluded.day', (rentcast.SOURCE if marker==rentcast.MARKER else marker,slot))
   c.commit()
   return result.rowcount==1
 

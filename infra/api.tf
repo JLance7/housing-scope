@@ -30,6 +30,13 @@ resource "aws_apigatewayv2_route" "api" {
   authorization_scopes = ["openid"]
 }
 
+resource "aws_apigatewayv2_route" "public" {
+  for_each  = toset(["listings", "markets", "neighborhoods"])
+  api_id    = aws_apigatewayv2_api.website.id
+  route_key = "GET /api/public/${each.key}"
+  target    = "integrations/${aws_apigatewayv2_integration.website.id}"
+}
+
 resource "aws_apigatewayv2_stage" "website" {
   api_id      = aws_apigatewayv2_api.website.id
   name        = "$default"

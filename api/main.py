@@ -1,6 +1,6 @@
 import csv, hmac, io, json, os, re, time
 from datetime import timedelta
-from api import auth, rentcast
+from api import auth, locations, rentcast
 from hashlib import sha256
 from typing import Optional
 from fastapi import FastAPI, Header, HTTPException, Query, Request
@@ -27,11 +27,16 @@ def startup():
   for item in json.loads((ROOT/'seed_listings.json').read_text(encoding='utf-8')):
    if item['id'] not in existing_ids:
     save_row(normalize(item))
+ seeded = {'nyc-01':'Astoria','nyc-02':'Sunset Park','nyc-03':'Pelham Bay'}
+ for row in rows:
+  if row['id'] in seeded and row.get('source')=='Sample data' and not row.get('neighborhood'):
+   row['neighborhood']=seeded[row['id']]
+   save_row(row,keep_favorite=True)
  if not os.getenv('RENTCAST_API_KEY') and os.getenv('LISTING_FEED_URL') and os.getenv('SYNC_ON_START','false').lower()=='true':
   try:sync_feed()
   except Exception as e:print('Initial feed sync failed:',e)
 class ImportBody(BaseModel):csv:str
-class ListingBody(BaseModel):title:str;area:str;property_type:str='House';price:float=Field(ge=0);rent:Optional[float]=None;beds:float=0;baths:float=0;sqft:int=0;hoa_monthly:float=0;taxes_yearly:float=0;insurance_yearly:float=0;source:str='Manual entry';source_url:str=''
+class ListingBody(BaseModel):title:str;area:str;neighborhood:str='';property_type:str='House';price:float=Field(ge=0);rent:Optional[float]=None;beds:float=0;baths:float=0;sqft:int=0;hoa_monthly:float=0;taxes_yearly:float=0;insurance_yearly:float=0;source:str='Manual entry';source_url:str=''
 def visible_rows(saved_ids=None):
  rows=all_rows()
  cutoff=(rentcast.today()-timedelta(days=7)).isoformat()
@@ -61,21 +66,98 @@ def public(x):
  x=dict(x);x['monthly_cost']=monthly_cost(x);x['favorite']=bool(x.get('favorite',False));return x
 @app.get('/api/health')
 def health():return {'status':'ok','storage':'dynamodb' if TABLE else 'sqlite'}
-@app.get('/api/listings')
-def listings(request:Request,budget:float=Query(4200,ge=0),property_type:str='all',area:str='all',q:str='',sort:str='cost',affordable_only:bool=False,saved_only:bool=False):
- claims=auth.identity(request)
+def browse_listings(claims,budget,property_type,area,q,sort,affordable_only,saved_only,neighborhood,min_rating,max_price,guest=False):
  saved_ids=account_favorites(claims) if claims else (
   {x['id'] for x in all_rows() if x.get('favorite')} if saved_only else None
  )
- arr=[public(x) for x in visible_rows(saved_ids if saved_only else None)]
- if claims:
-  for x in arr:x['favorite']=x['id'] in saved_ids
- if property_type!='all':arr=[x for x in arr if x['property_type'].lower()==property_type.lower()]
- if area!='all':arr=[x for x in arr if x['area'].lower()==area.lower()]
- if q:arr=[x for x in arr if q.lower() in (x['title']+' '+x['area']+' '+x.get('address','')).lower()]
- if saved_only:arr=[x for x in arr if x.get('favorite')]
- if affordable_only:arr=[x for x in arr if x['monthly_cost']<=budget]
- key={'price':lambda x:x['price'],'change':lambda x:x.get('change_30d') or 0}.get(sort,lambda x:x['monthly_cost']);arr.sort(key=key);return arr
+ ratings=locations.neighborhood_ratings(area)
+ arr=[]
+ for row in visible_rows(saved_ids if saved_only else None):
+  if area!='all' and row['area'].casefold()!=area.casefold():continue
+  name=row.get('neighborhood') or ''
+  if neighborhood and name.casefold()!=neighborhood.casefold():continue
+  if property_type!='all' and row['property_type'].lower()!=property_type.lower():continue
+  if q and q.casefold() not in ' '.join((row['title'],row['area'],name,row.get('address') or '')).casefold():continue
+  x=public(row)
+  if claims:x['favorite']=x['id'] in saved_ids
+  if saved_only and not x.get('favorite'):continue
+  if affordable_only and x['monthly_cost']>budget:continue
+  if max_price is not None and x['price']>max_price:continue
+  rating=ratings.get((row['area'].casefold(),name.casefold()),{'rating':None,'rating_count':0})
+  if min_rating and (rating['rating'] or 0)<min_rating:continue
+  x.update(rating,neighborhood=name)
+  if guest:
+   fields=('id','title','area','neighborhood','property_type','address','price','monthly_cost','beds','baths','sqft','change_30d','source','source_url','updated_at','rating','rating_count')
+   x={field:x.get(field) for field in fields}
+  arr.append(x)
+ key={
+  'price':lambda x:x['price'],
+  'change':lambda x:x.get('change_30d') or 0,
+  'rating':lambda x:(-(x['rating'] or 0),-x['rating_count'],x['monthly_cost']),
+ }.get(sort,lambda x:x['monthly_cost'])
+ arr.sort(key=key)
+ return arr
+
+@app.get('/api/listings')
+def listings(request:Request,budget:float=Query(4200,ge=0),property_type:str='all',area:str='all',q:str='',sort:str='cost',affordable_only:bool=False,saved_only:bool=False,neighborhood:str='',min_rating:float=Query(0,ge=0,le=5),max_price:Optional[float]=Query(None,ge=0)):
+ claims=auth.identity(request)
+ return browse_listings(claims,budget,property_type,area,q,sort,affordable_only,saved_only,neighborhood,min_rating,max_price)
+
+@app.get('/api/public/listings')
+def public_listings(budget:float=Query(4200,ge=0),property_type:str='all',area:str='all',q:str='',sort:str='cost',affordable_only:bool=False,neighborhood:str='',min_rating:float=Query(0,ge=0,le=5),max_price:Optional[float]=Query(None,ge=0)):
+ return browse_listings(None,budget,property_type,area,q,sort,affordable_only,False,neighborhood,min_rating,max_price,guest=True)
+
+@app.get('/api/public/markets')
+def public_markets():
+ return [{'city':city,'state':state} for city,state in configured_markets()]
+
+@app.get('/api/public/neighborhoods')
+def neighborhoods(area:str=Query(min_length=1,max_length=80)):
+ ratings=locations.neighborhood_ratings(area)
+ names={row['neighborhood'] for row in visible_rows()
+        if row['area'].casefold()==area.casefold() and row.get('neighborhood')}
+ return [dict(name=name,**ratings.get((area.casefold(),name.casefold()),{'rating':None,'rating_count':0}))
+         for name in sorted(names,key=str.casefold)]
+
+class SavedLocationBody(BaseModel):
+ city:str=Field(min_length=1,max_length=80)
+ neighborhood:str=Field(default='',max_length=80)
+ saved:bool
+
+class NeighborhoodRating(BaseModel):
+ city:str=Field(min_length=1,max_length=80)
+ neighborhood:str=Field(min_length=1,max_length=80)
+ stars:int=Field(ge=1,le=5)
+
+def require_account(request):
+ claims=auth.identity(request)
+ if claims is None:raise HTTPException(401,'Sign in to use account features')
+ return claims
+
+@app.get('/api/locations')
+def get_saved_locations(request:Request):
+ return locations.saved_locations(require_account(request)['sub'])
+
+@app.put('/api/locations')
+def put_saved_location(body:SavedLocationBody,request:Request):
+ subject=require_account(request)['sub']
+ city=locations.normalize_place(body.city)
+ neighborhood=locations.normalize_place(body.neighborhood)
+ if not city or city.casefold()=='all':raise HTTPException(422,'Select a city')
+ locations.save_location(subject,city,neighborhood,body.saved)
+ return {'saved':body.saved}
+
+@app.put('/api/neighborhoods/rating')
+def put_neighborhood_rating(body:NeighborhoodRating,request:Request):
+ subject=require_account(request)['sub']
+ city=locations.normalize_place(body.city)
+ neighborhood=locations.normalize_place(body.neighborhood)
+ match=next((row for row in visible_rows() if row['area'].casefold()==city.casefold()
+             and (row.get('neighborhood') or '').casefold()==neighborhood.casefold()),None)
+ if not neighborhood or not match:raise HTTPException(404,'Neighborhood not found in this city')
+ locations.rate_neighborhood(subject,match['area'],match['neighborhood'],body.stars)
+ return {'stars':body.stars}
+
 @app.get('/api/areas')
 def areas(request:Request):
  auth.identity(request)
@@ -167,6 +249,8 @@ class WatchBody(BaseModel):
  email:str=Field(default="",max_length=254)
  budget:Optional[float]=Field(default=None,gt=0,le=100000)
  keyword:str=Field(default='',max_length=100)
+ neighborhood:str=Field(default='',max_length=80)
+ alert_hour:int=Field(default=11,ge=0,le=23)
  property_type:str=Field(default='all',pattern='^(all|House|Apartment)$')
 
 class UnsubscribeBody(BaseModel):
@@ -226,11 +310,11 @@ def subscribe(body:WatchBody,request:Request,token:Optional[str]=Header(None,ali
  city=require_market(body.city)
  email=clean_email(auth.verified_email(request,claims) if claims else body.email)
  if not topic_prefix():raise HTTPException(503,'Email subscriptions are not configured')
- if body.budget is None and not body.keyword.strip() and body.property_type=='all':
-  raise HTTPException(422,'Set a monthly budget, keyword, or listing type')
+ if body.budget is None and not body.keyword.strip() and not body.neighborhood.strip() and body.property_type=='all':
+  raise HTTPException(422,'Set a monthly budget, neighborhood, keyword, or listing type')
  key=account_watch_key(city,claims, email)
  watch=body.model_dump()
- watch.update(city=city,email=email,keyword=body.keyword.strip(),key=key)
+ watch.update(city=city,email=email,keyword=body.keyword.strip(),neighborhood=locations.normalize_place(body.neighborhood),key=key)
  if claims:
   watch.update(subject=claims['sub'],privileged=True)
   if auth.is_owner(claims):write_feed_setting('alert_access:'+claims['sub'],{'enabled':True})

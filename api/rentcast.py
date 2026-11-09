@@ -64,7 +64,9 @@ def listing(raw, city, state, endpoint, day):
     beds, baths, sqft, hoa = numbers
     rental = endpoint != 'sale'
     identifier = sha256(f"{endpoint}|{state}|{raw['id']}".encode()).hexdigest()
-    return {'id': 'rentcast-' + identifier, 'title': raw.get('addressLine1') or address,
+    zip_code = str(raw.get('zipCode') or '')
+    neighborhood = raw.get('neighborhood') or ('ZIP ' + zip_code if len(zip_code) == 5 and zip_code.isdecimal() else '')
+    return {'neighborhood': neighborhood, 'id': 'rentcast-' + identifier, 'title': raw.get('addressLine1') or address,
             'area': city, 'address': address, 'property_type': 'Apartment' if rental else 'House',
             'price': price, 'rent': price if rental else None, 'beds': beds, 'baths': baths,
             'sqft': int(sqft), 'hoa_monthly': 0 if rental else hoa, 'source': SOURCE,

@@ -30,7 +30,7 @@
   function showAccount(account, message) {
     signIn.hidden = Boolean(account);
     signOut.hidden = !account;
-    status.textContent = message || (account ? 'Signed in as ' + account.email : 'Sign in to browse and refresh listings.');
+    status.textContent = message || (account ? 'Signed in as ' + account.email : 'Browse listings as a guest or sign in to save locations and refresh listings.');
   }
 
   function clearToken() {

@@ -2,6 +2,7 @@
 import json
 import os
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from api import rentcast
@@ -47,9 +48,7 @@ def sync_feed(*, city='', scheduled=False):
         reserve = reserve_rentcast_day if scheduled else reserve_manual_rentcast_day
         count = rentcast.sync(key, selected, reserve, save_listing)
         if scheduled and imported:
-            from api.alerts import send_matches
-
-            send_matches(imported)
+            save_alert_batch(imported, rentcast.today())
         return count
 
     url = os.getenv('LISTING_FEED_URL', '').strip()
@@ -67,6 +66,43 @@ def sync_feed(*, city='', scheduled=False):
     return len(rows)
 
 
+def save_alert_batch(listings, day):
+    from api.storage import write_feed_setting
+
+    fields = ('id','area','neighborhood','property_type','price','rent','hoa_monthly','taxes_yearly','insurance_yearly')
+    snapshots = []
+    for listing in listings[:100]:
+        row = {field: listing.get(field) for field in fields}
+        row.update(title=listing['title'][:180], address=listing['address'][:240])
+        snapshots.append(row)
+    write_feed_setting(f'alert_batch:{day.toordinal() % 2}', {'day': day.isoformat(), 'listings': snapshots})
+
+
+def scheduled_tick(now):
+    from api.alerts import send_matches, topic_prefix
+    from api.storage import read_feed_setting, reserve_scheduled_slot
+
+    updated = sync_feed(scheduled=True) if now.hour == 11 else 0
+    if not topic_prefix():
+        return {'updated': updated}
+    enabled = enabled_cities()
+    if not enabled:
+        return {'updated': updated}
+
+    slot = now.strftime('%Y-%m-%dT%H')
+    if not reserve_scheduled_slot('__homescope_alert_hour__', slot):
+        return {'updated': updated}
+    newest = {}
+    for day in (now.date() - timedelta(days=1), now.date()):
+        batch = read_feed_setting(f'alert_batch:{day.toordinal() % 2}')
+        if batch and batch['day'] == day.isoformat():
+            newest.update((row['id'], row) for row in batch['listings'])
+    candidates = [row for row in newest.values() if row['area'].casefold() in enabled]
+    if candidates:
+        send_matches(candidates, hour=now.hour)
+    return {'updated': updated}
+
+
 def lambda_handler(event, context):
     from api.storage import TABLE, init_db
 
@@ -82,7 +118,8 @@ def lambda_handler(event, context):
     if (event.get('source') != 'aws.events' or event.get('detail-type') != 'Scheduled Event'
             or (rule and rule not in event.get('resources', []))):
         raise ValueError('Unknown ETL trigger.')
-    return {'updated': sync_feed(scheduled=True)}
+    now = datetime.fromisoformat(event['time'].replace('Z', '+00:00')).astimezone(timezone.utc)
+    return scheduled_tick(now)
 
 
 def main():
@@ -98,7 +135,8 @@ def main():
     options = parser.parse_args()
     if not TABLE:
         init_db()
-    print(f"Updated {sync_feed(city=options.city, scheduled=options.scheduled)} listings.")
+    result = scheduled_tick(datetime.now(timezone.utc)) if options.scheduled else {'updated': sync_feed(city=options.city)}
+    print(f"Updated {result['updated']} listings.")
 
 
 if __name__ == '__main__':

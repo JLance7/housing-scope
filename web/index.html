@@ -15,6 +15,21 @@
   </div>
 </section>
 <section class="search-panel" id="search"><div class="filter-heading"><div><h2>Explore places</h2><p>Online listings and imports, with sample data where available</p></div><button class="clear-button" id="clearFilters">Reset filters</button></div><div class="filters"><label>Monthly budget <div class="range-row"><input id="budget" type="range" min="900" max="4200" step="100" value="2400"><strong id="budgetValue">$2,400</strong></div></label><label>Property type<select id="type"><option value="all">Homes & apartments</option><option value="House">Houses</option><option value="Apartment">Apartments</option></select></label><label>City<select id="area"><option>New York</option></select></label><label>Search<input id="searchText" type="search" placeholder="Neighborhood or listing name"></label></div>
+<div class="location-filters">
+<label>Neighborhood or ZIP <select id="neighborhood"><option value="">All neighborhoods and ZIPs</option></select></label>
+<label>Minimum community rating <select id="minRating"><option value="0">Any rating</option><option value="3">3 stars and up</option><option value="4">4 stars and up</option><option value="5">5 stars</option></select></label>
+<label>Maximum listing price <input type="number" id="maxPrice" min="0" placeholder="Any price"></label>
+<label class="check-filter"><input type="checkbox" id="affordableOnly"> Within monthly budget</label>
+</div>
+<p class="muted">Ratings come from HomeScope users. Where the source has no neighborhood name, online listings can be grouped by ZIP.</p>
+<div id="accountLocations" class="city-tools" hidden>
+<label>Saved locations <select id="savedLocations"><option value="">Choose a saved location</option></select></label>
+<button class="clear-button" id="saveLocation" type="button">Save this location</button>
+<form id="ratingForm">
+<label>Rate the selected neighborhood <select id="ratingStars"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select></label>
+<button class="clear-button" id="submitRating" type="submit" disabled>Save rating</button>
+</form>
+</div>
 <div class="city-tools">
 <form id="addCity"><label for="cityName">Add a city</label><input id="cityName" maxlength="80" required placeholder="e.g. Chicago"><button class="clear-button" type="submit">Add city</button></form>
 <label>Import listings CSV <input id="csvFile" type="file" accept=".csv,text/csv"></label>
@@ -32,9 +47,11 @@
 <form id="watchForm">
 <label>Email <input id="watchEmail" type="email" maxlength="254" required autocomplete="email"></label>
 <label>Max estimated monthly cost <input id="watchBudget" type="number" min="1" max="100000" placeholder="Optional"></label>
+<label>Neighborhood or ZIP <select id="watchNeighborhood"><option value="">Any</option></select></label>
 <label>Address keyword <input id="watchKeyword" maxlength="100" placeholder="Optional"></label>
+<label>Preferred email hour (UTC) <select id="watchHour"></select></label>
 <label>Listing type <select id="watchType"><option value="all">Either</option><option value="House">For sale</option><option value="Apartment">For rent</option></select></label>
-<p>Email watches are available to the owner and approved users. Set a budget, keyword, or listing type. Alerts only run for cities included in daily sync.</p>
+<p>Email watches are available to the owner and approved users. Choose a neighborhood, budget, keyword, or listing type. Alerts go out at your selected UTC hour when a scheduled import finds new matches.</p>
 <button class="clear-button" id="watchSave" disabled>Subscribe or update</button>
 <button class="clear-button" id="watchRemove" type="button">Unsubscribe</button>
 </form>
@@ -51,6 +68,6 @@
 <p class="muted" id="feedAction" role="status"></p>
 <p id="cityStatus" class="muted" role="status"></p></section>
 <section class="stats"><article><span>Matching places</span><b id="count">0</b><small>Homes and apartments</small></article><article><span>Within your budget</span><b id="affordableCount">0</b><small>Estimated monthly cost</small></article><article><span>Typical monthly cost</span><b id="avgPayment">—</b><small>For matching listings</small></article></section>
-<div class="content-grid"><section class="results"><div class="section-head"><div><p class="eyebrow">CURATED FOR YOUR BUDGET</p><h2>Places to explore</h2></div><select id="sort"><option value="cost">Lowest monthly cost</option><option value="price">Lowest listing price</option><option value="change">Largest price drop</option></select></div><div class="listing-grid" id="listingGrid"></div><div class="empty hidden" id="empty">No listings match these filters. Try a different filter or import listings for this city.</div><p class="disclaimer">Monthly costs are estimates, not quotes. Verify prices, taxes, fees, and availability with the provider.</p></section>
+<div class="content-grid"><section class="results"><div class="section-head"><div><p class="eyebrow">CURATED FOR YOUR BUDGET</p><h2>Places to explore</h2></div><select id="sort"><option value="cost">Lowest monthly cost</option><option value="price">Lowest listing price</option><option value="change">Largest price drop</option><option value="rating">Highest neighborhood rating</option></select></div><div class="listing-grid" id="listingGrid"></div><div class="empty hidden" id="empty">No listings match these filters. Try a different filter or import listings for this city.</div><p class="disclaimer">Monthly costs are estimates, not quotes. Verify prices, taxes, fees, and availability with the provider.</p></section>
 <aside class="area-card" id="areas"><div class="section-head"><div><p class="eyebrow">WHERE YOUR BUDGET GOES FURTHER</p><h2>Area snapshot</h2></div><span class="spark">↗</span></div><p class="muted">Typical estimated monthly cost in the selected city.</p><div id="areaBars" class="area-bars"></div><div class="difference"><span class="spark">✦</span><p><b>Look beyond the listing price.</b><br>Compare areas by estimated monthly cost and recent price changes.</p></div><div class="demo-tag">✦ Import authorized listing data</div></aside></div>
 </main><footer>HomeScope · Affordability estimates are informational; verify listing details with providers.</footer><script src="auth-config.js"></script><script src="auth.js"></script><script src="app.js"></script></body></html>

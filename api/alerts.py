@@ -42,17 +42,20 @@ def matches(watch, listing):
     searchable = f"{listing['title']} {listing['address']}".casefold()
     return (watch['city'].casefold() == listing['area'].casefold()
             and watch['property_type'] in ('all', listing['property_type'])
+            and (not watch.get('neighborhood') or watch['neighborhood'].casefold() == (listing.get('neighborhood') or '').casefold())
             and watch['keyword'].casefold() in searchable
             and (watch['budget'] is None or monthly_cost(listing) <= watch['budget']))
 
 
-def send_matches(listings):
+def send_matches(listings, hour=11):
     if not topic_prefix():
         return
 
     client = sns_client()
     notices = {row['key']: row['ids'] for row in feed_settings('notices:')}
     for watch in feed_settings('watch:'):
+        if watch.get('alert_hour', 11) != hour:
+            continue
         topic = watch.get('topic')
         if not topic:
             continue

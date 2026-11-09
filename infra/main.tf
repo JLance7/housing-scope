@@ -123,7 +123,7 @@ resource "aws_lambda_function" "app" {
 }
 resource "aws_cloudwatch_event_rule" "sync" {
   name                = "${local.name}-sync"
-  schedule_expression = "cron(0 11 * * ? *)"
+  schedule_expression = "cron(0 * * * ? *)"
   state               = var.enable_feed_sync ? "ENABLED" : "DISABLED"
 }
 resource "aws_cloudwatch_event_target" "sync" {

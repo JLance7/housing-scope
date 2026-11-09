@@ -34,7 +34,7 @@ Create a GitHub environment named production. Restrict it to the default branch 
 | AWS_REGION | Bootstrap AWS region. The workflow defaults to us-east-2. |
 | HOMES_AUTH_DOMAIN_PREFIX | Unique Cognito domain prefix |
 | HOMES_GOOGLE_CLIENT_ID | Google OAuth web client ID |
-| HOMES_ENABLE_FEED_SYNC | Set to true when you are ready for daily imports |
+| HOMES_ENABLE_FEED_SYNC | Set to true to enable daily imports and hourly email checks |
 | HOMES_RENTCAST_MARKETS | Optional initial city list, for example New York,NY;Chicago,IL |
 | HOMES_FEED_URL | Optional URL for a custom listing feed |
 

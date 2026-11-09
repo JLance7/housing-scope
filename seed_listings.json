@@ -10,7 +10,8 @@
     "beds": 1,
     "baths": 1,
     "sqft": 650,
-    "source": "Sample data"
+    "source": "Sample data",
+    "neighborhood": "Astoria"
   },
   {
     "id": "nyc-02",
@@ -23,7 +24,8 @@
     "beds": 2,
     "baths": 1,
     "sqft": 850,
-    "source": "Sample data"
+    "source": "Sample data",
+    "neighborhood": "Sunset Park"
   },
   {
     "id": "nyc-03",
@@ -37,6 +39,7 @@
     "sqft": 1450,
     "taxes_yearly": 5400,
     "insurance_yearly": 1900,
-    "source": "Sample data"
+    "source": "Sample data",
+    "neighborhood": "Pelham Bay"
   }
 ]

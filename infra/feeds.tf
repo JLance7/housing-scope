@@ -24,7 +24,7 @@ variable "listing_feed_token" {
 
 variable "enable_feed_sync" {
   type        = bool
-  description = "Enable daily sync only after configuring an authorized feed."
+  description = "Enable the hourly job for the daily import and per-watch email delivery."
   default     = false
 }
 
