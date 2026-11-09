@@ -17,9 +17,13 @@ resource "aws_cloudfront_origin_access_control" "website" {
   signing_protocol                  = "sigv4"
 }
 
-data "aws_cloudfront_cache_policy" "static" { name = "Managed-CachingOptimized" }
-data "aws_cloudfront_cache_policy" "api" { name = "Managed-CachingDisabled" }
-data "aws_cloudfront_origin_request_policy" "api" { name = "Managed-AllViewerExceptHostHeader" }
+locals {
+  # AWS-managed CloudFront policy IDs are fixed. Use them directly so planning
+  # does not require permission to list or read managed policies.
+  cloudfront_static_cache_policy = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+  cloudfront_api_cache_policy    = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+  cloudfront_api_origin_policy   = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+}
 
 resource "aws_cloudfront_response_headers_policy" "website" {
   name = "${local.name}-website"
@@ -67,7 +71,7 @@ resource "aws_cloudfront_distribution" "website" {
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD", "OPTIONS"]
     cached_methods             = ["GET", "HEAD"]
-    cache_policy_id            = data.aws_cloudfront_cache_policy.static.id
+    cache_policy_id            = local.cloudfront_static_cache_policy
     response_headers_policy_id = aws_cloudfront_response_headers_policy.website.id
     compress                   = true
   }
@@ -78,8 +82,8 @@ resource "aws_cloudfront_distribution" "website" {
     viewer_protocol_policy   = "https-only"
     allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.api.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.api.id
+    cache_policy_id          = local.cloudfront_api_cache_policy
+    origin_request_policy_id = local.cloudfront_api_origin_policy
     compress                 = true
   }
 
