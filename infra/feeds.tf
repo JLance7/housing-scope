@@ -6,30 +6,14 @@ variable "rentcast_api_key" {
 
 variable "rentcast_markets" {
   type    = string
-  default = "White Plains,NY"
-}
-
-variable "listing_feed_url" {
-  type        = string
-  description = "Authorized listing JSON feed URL."
-  default     = ""
-}
-
-variable "listing_feed_token" {
-  sensitive   = true
-  type        = string
-  description = "Feed bearer token; supplied via TF_VAR_listing_feed_token."
-  default     = ""
+  default = "Salt Lake City,UT"
 }
 
 variable "enable_feed_sync" {
   type        = bool
-  description = "Enable the hourly job for the daily import and per-watch email delivery."
+  description = "Enable hourly checks for listing email alerts."
   default     = false
 }
-
-
-
 locals {
   alert_topic_prefix = "${local.name}-watch-"
   alert_topics_arn   = "arn:${data.aws_partition.current.partition}:sns:${var.region}:${data.aws_caller_identity.current.account_id}:${local.alert_topic_prefix}*"

@@ -7,10 +7,11 @@ import tempfile
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / 'src'
 OUTPUT = ROOT / '.build' / 'homescope.zip'
 REQUIRED = {
     'api/main.py', 'api/auth.py', 'api/storage.py', 'api/sync_listings.py',
-    'api/rentcast.py', 'api/alerts.py', 'seed_listings.json', 'web/index.html',
+    'api/rentcast.py', 'api/rentcast_account.py', 'api/alerts.py', 'seed_listings.json', 'web/index.html',
     'fastapi/__init__.py',
 }
 
@@ -23,17 +24,17 @@ def main():
             sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check',
             '--platform', 'manylinux2014_x86_64', '--implementation', 'cp',
             '--python-version', '3.12', '--only-binary=:all:',
-            '--target', str(stage), '-r', str(ROOT / 'api' / 'requirements.txt'),
+            '--target', str(stage), '-r', str(ROOT / 'requirements.txt'),
         ], check=True)
         (stage / 'api').mkdir()
-        for file in (ROOT / 'api').glob('*.py'):
+        for file in (SOURCE / 'api').glob('*.py'):
             shutil.copy2(file, stage / 'api' / file.name)
         (stage / 'api' / '__init__.py').touch()
 
         (stage / 'web').mkdir()
         for name in ('index.html', 'styles.css', 'app.js', 'auth.js', 'auth-config.js'):
-            shutil.copy2(ROOT / 'web' / name, stage / 'web' / name)
-        shutil.copy2(ROOT / 'seed_listings.json', stage)
+            shutil.copy2(SOURCE / 'web' / name, stage / 'web' / name)
+        shutil.copy2(SOURCE / 'seed_listings.json', stage)
 
         with ZipFile(OUTPUT, 'w', ZIP_DEFLATED) as archive:
             for file in sorted(stage.rglob('*')):

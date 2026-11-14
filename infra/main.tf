@@ -25,10 +25,9 @@ data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  functions = { api = "api.main.handler", sync = "api.sync_listings.lambda_handler" }
-  roles     = { api = aws_iam_role.lambda, sync = aws_iam_role.etl }
-  sync_name = "${local.name}-sync"
-  sync_arn  = "arn:${data.aws_partition.current.partition}:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:${local.sync_name}"
+  functions           = { api = "api.main.handler", sync = "api.sync_listings.lambda_handler" }
+  roles               = { api = aws_iam_role.lambda, sync = aws_iam_role.etl }
+  rentcast_key_prefix = "/${local.name}/rentcast"
 }
 
 resource "aws_iam_role_policy" "logs" {
@@ -63,15 +62,15 @@ resource "aws_iam_role_policy" "etl_storage" {
   })
 }
 
-resource "aws_iam_role_policy" "invoke_etl" {
-  name = "invoke-listing-etl"
+resource "aws_iam_role_policy" "rentcast_keys" {
+  name = "account-rentcast-keys"
   role = aws_iam_role.lambda.name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["lambda:InvokeFunction"]
-      Resource = local.sync_arn
+      Action   = ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"]
+      Resource = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${local.rentcast_key_prefix}/*"
     }]
   })
 }
@@ -100,23 +99,23 @@ resource "aws_lambda_function" "app" {
       HOMESCOPE_SNS_TOPIC_PREFIX = local.alert_topic_prefix
       HOMESCOPE_AUTH_REQUIRED    = "true"
       }, each.key == "api" ? tomap({
-        HOMESCOPE_DAILY_ENABLED    = tostring(var.enable_feed_sync)
-        HOMESCOPE_RENTCAST_ENABLED = tostring(nonsensitive(length(trimspace(var.rentcast_api_key)) > 0))
-        HOMESCOPE_COGNITO_ORIGIN   = local.cognito_origin
-        HOMESCOPE_USER_POOL_ID     = aws_cognito_user_pool.accounts.id
-        HOMESCOPE_SYNC_FUNCTION    = local.sync_name
+        HOMESCOPE_DAILY_ENABLED       = tostring(var.enable_feed_sync)
+        HOMESCOPE_RENTCAST_ENABLED    = tostring(nonsensitive(length(trimspace(var.rentcast_api_key)) > 0))
+        HOMESCOPE_COGNITO_ORIGIN      = local.cognito_origin
+        HOMESCOPE_USER_POOL_ID        = aws_cognito_user_pool.accounts.id
+        HOMESCOPE_RENTCAST_KEY_PREFIX = local.rentcast_key_prefix
+        HOMESCOPE_PREVIEW_KEY_HASH    = sha256(trimspace(var.rentcast_api_key))
         }) : tomap({
         RENTCAST_API_KEY            = var.rentcast_api_key
-        LISTING_FEED_URL            = var.listing_feed_url
-        LISTING_FEED_TOKEN          = var.listing_feed_token
         HOMESCOPE_SCHEDULE_RULE_ARN = aws_cloudwatch_event_rule.sync.arn
+        HOMESCOPE_DAILY_ENABLED     = tostring(var.enable_feed_sync)
     }))
   }
   depends_on = [
     aws_iam_role_policy.logs,
     aws_iam_role_policy.storage,
     aws_iam_role_policy.etl_storage,
-    aws_iam_role_policy.invoke_etl,
+    aws_iam_role_policy.rentcast_keys,
     aws_iam_role_policy.watch_topics,
     aws_iam_role_policy.publish_alerts,
   ]
@@ -124,7 +123,7 @@ resource "aws_lambda_function" "app" {
 resource "aws_cloudwatch_event_rule" "sync" {
   name                = "${local.name}-sync"
   schedule_expression = "cron(0 * * * ? *)"
-  state               = var.enable_feed_sync ? "ENABLED" : "DISABLED"
+  state               = var.enable_feed_sync || nonsensitive(length(trimspace(var.rentcast_api_key)) > 0) ? "ENABLED" : "DISABLED"
 }
 resource "aws_cloudwatch_event_target" "sync" {
   rule = aws_cloudwatch_event_rule.sync.name
@@ -136,13 +135,4 @@ resource "aws_lambda_permission" "sync" {
   function_name = aws_lambda_function.app["sync"].function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.sync.arn
-}
-
-
-# Warm the guest catalog during the first deployment with a listing provider key.
-resource "aws_lambda_invocation" "guest_preview" {
-  count           = nonsensitive(length(trimspace(var.rentcast_api_key)) > 0) ? 1 : 0
-  function_name   = aws_lambda_function.app["sync"].function_name
-  input           = jsonencode({ mode = "preview" })
-  lifecycle_scope = "CREATE_ONLY"
 }

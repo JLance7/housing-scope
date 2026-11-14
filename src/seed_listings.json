@@ -83,5 +83,29 @@
     "baths": 2,
     "sqft": 1490,
     "source": "Sample data"
+  },
+  {
+    "id": "slc-sample-1",
+    "title": "Downtown one-bedroom",
+    "area": "Salt Lake City",
+    "neighborhood": "Downtown",
+    "property_type": "Apartment",
+    "price": 1550,
+    "rent": 1550,
+    "beds": 1,
+    "baths": 1,
+    "source": "Sample data"
+  },
+  {
+    "id": "slc-sample-2",
+    "title": "Sugar House two-bedroom",
+    "area": "Salt Lake City",
+    "neighborhood": "Sugar House",
+    "property_type": "Apartment",
+    "price": 1950,
+    "rent": 1950,
+    "beds": 2,
+    "baths": 1,
+    "source": "Sample data"
   }
 ]

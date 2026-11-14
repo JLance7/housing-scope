@@ -35,9 +35,7 @@ jobs:
       TF_VAR_google_client_id: ${{ vars.HOMES_GOOGLE_CLIENT_ID }}
       TF_VAR_google_client_secret: ${{ secrets.HOMES_GOOGLE_CLIENT_SECRET }}
       TF_VAR_rentcast_api_key: ${{ secrets.HOMES_RENTCAST_API_KEY }}
-      TF_VAR_rentcast_markets: ${{ vars.HOMES_RENTCAST_MARKETS || 'White Plains,NY' }}
-      TF_VAR_listing_feed_url: ${{ vars.HOMES_FEED_URL }}
-      TF_VAR_listing_feed_token: ${{ secrets.HOMES_FEED_TOKEN }}
+      TF_VAR_rentcast_markets: ${{ vars.HOMES_RENTCAST_MARKETS || 'Salt Lake City,UT' }}
       TF_VAR_enable_feed_sync: ${{ vars.HOMES_ENABLE_FEED_SYNC || 'false' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -47,8 +45,8 @@ jobs:
 
       - name: Check frontend scripts
         run: |
-          node --check web/auth.js
-          node --check web/app.js
+          node --check src/web/auth.js
+          node --check src/web/app.js
       - name: Build the Linux Lambda ZIP
         run: python scripts/package_lambda.py
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd

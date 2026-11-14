@@ -19,17 +19,17 @@ if errorlevel 1 goto failed
 :run
 "%VENV_PY%" -c "import sys; sys.exit(sys.version_info < (3, 11))"
 if errorlevel 1 goto incompatible
-"%VENV_PY%" -m pip install -r api\requirements.txt
+"%VENV_PY%" -m pip install -r requirements.txt
 if errorlevel 1 goto failed
 if exist ".env" (
-  "%VENV_PY%" -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000 --env-file .env
+  "%VENV_PY%" -m uvicorn api.main:app --app-dir src --reload --reload-dir src --host 127.0.0.1 --port 8000 --env-file .env
 ) else (
-  "%VENV_PY%" -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+  "%VENV_PY%" -m uvicorn api.main:app --app-dir src --reload --reload-dir src --host 127.0.0.1 --port 8000
 )
 exit /b %errorlevel%
 
 :incompatible
-echo This .venv needs Python 3.11 or 3.12. Rename .venv and rerun run.bat.
+echo This .venv needs Python 3.11 or 3.12. Rename .venv and rerun local_run.bat.
 exit /b 1
 
 :failed

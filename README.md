@@ -1,17 +1,20 @@
 # HomeScope
 
-HomeScope helps you compare places to live by what they might cost each month. Browse the White Plains, New York preview without an account. Sign in with Google to explore other locations.
+Search rentals and homes by monthly cost, save favorites, and compare neighborhoods.
 
-## What makes HomeScope different?
+## Run locally on Windows
 
-- **Start with monthly cost.** Compare rent with estimated homeownership costs that include mortgage payments and any available taxes, insurance, and HOA fees.
-- **Search the cities you care about.** Filter by city, neighborhood or ZIP, property type, listing price, monthly budget, and community ratings. Signed-in users can add cities and request a refresh, subject to the app's shared request limits.
-- **Save places privately.** Sign in with Google to save cities, neighborhoods, and favorite listings. You can also rate a neighborhood.
-- **Know when a listing was checked.** Online results show when HomeScope fetched them. Demo listings are labeled.
-- **Watch for listings that fit.** The site owner and approved users can enable scheduled city updates and receive email alerts for matches by budget, address keyword, or listing type at a preferred UTC hour after confirming the subscription.
+1. Install Python 3.11 or 3.12.
+2. Run `.\local_run.bat` from the project folder. Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+3. For live listings, copy `.env.example` to `.env`, fill in `RENTCAST_API_KEY` and `RENTCAST_MARKETS`, then restart and click **Refresh listings**. Without a key, you can browse sample listings.
 
-Online listings come from RentCast when configured. Results cover a subset of available inventory, and prices or availability may change between updates. Monthly ownership costs are estimates. Verify listing details with the provider.
+Local data is stored in `data/homescope.db`. Keep `.env` private.
 
-## Development
+## How the deployed app works
 
-See [developer notes](dev-notes.md) for local setup, data sources, architecture, and deployment.
+- Guests browse cached Salt Lake City rentals. EventBridge refreshes them once a day at 11:00 UTC using the preview key from GitHub Actions.
+- Google sign-in unlocks favorites and private imports. Users connect their own RentCast key under **Settings and alerts**. AWS Parameter Store encrypts the key.
+- HomeScope estimates the free balance from the amount entered and requests made here. It asks before potentially billable requests. The [RentCast dashboard](https://app.rentcast.io/app/api) shows the actual bill.
+- CloudFront serves the UI from S3 and routes API requests through API Gateway to Lambda. DynamoDB stores listings and account data.
+
+Code lives in `src/api` and `src/web`. See the [architecture diagram](docs/architecture.md) and [AWS deployment guide](infra/bootstrap/README.md).

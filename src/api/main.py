@@ -1,20 +1,31 @@
-import csv, hmac, io, json, os, re, time
+import csv, io, json, os, re, time
 from datetime import timedelta
-from api import auth, locations, rentcast
+from logging import getLogger
+from api import auth, locations, rentcast, rentcast_account
 from hashlib import sha256
-from typing import Optional
-from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from typing import Literal, Optional
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr, StrictInt
 from api.storage import ROOT, TABLE, all_rows, init_db, monthly_cost, normalize, read_feed_setting, save_row, write_feed_setting
-from api.sync_listings import PREVIEW_CITY, configured_markets, sync_feed
+from api.sync_listings import PREVIEW_CITY, PREVIEW_STATE, configured_markets, sync_feed
 from api.alerts import delete_watch_topic, subscribe_watch, topic_prefix, watch_key
 
 WEB = ROOT / 'web'
-ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', '')
+logger = getLogger(__name__)
 
 app=FastAPI(title='HomeScope API',version='1.0.0')
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request, exc):
+ if request.url.path=='/api/rentcast/account':
+  return JSONResponse(status_code=422,content={'detail':'Enter a key and a free request balance from 0 to 50.'})
+ return await request_validation_exception_handler(request,exc)
+
+
 @app.on_event('startup')
 def startup():
  if not TABLE:init_db()
@@ -28,13 +39,16 @@ def startup():
   if row['id'] in seeded and row.get('source')=='Sample data' and not row.get('neighborhood'):
    row['neighborhood']=seeded[row['id']]
    save_row(row,keep_favorite=True)
- if not os.getenv('RENTCAST_API_KEY') and os.getenv('LISTING_FEED_URL') and os.getenv('SYNC_ON_START','false').lower()=='true':
-  try:sync_feed()
-  except Exception as e:print('Initial feed sync failed:',e)
 class ImportBody(BaseModel):csv:str
 class ListingBody(BaseModel):title:str;area:str;neighborhood:str='';property_type:str='House';price:float=Field(ge=0);rent:Optional[float]=None;beds:float=0;baths:float=0;sqft:int=0;hoa_monthly:float=0;taxes_yearly:float=0;insurance_yearly:float=0;source:str='Manual entry';source_url:str=''
-def visible_rows(saved_ids=None):
+def visible_rows(saved_ids=None, claims=None):
  rows=all_rows()
+ if claims:
+  private=rentcast_account.private_rows(claims['sub'])
+  private_ids={row['id'].rsplit('-rentcast-',1)[-1] for row in private}
+  rows=[row for row in rows if row['id'].removeprefix('rentcast-') not in private_ids or
+        (saved_ids is not None and row['id'] in saved_ids)]
+  rows.extend(private)
  cutoff=(rentcast.today()-timedelta(days=7)).isoformat()
  live_cities={
   x['area'].lower() for x in rows
@@ -68,7 +82,7 @@ def browse_listings(claims,budget,property_type,area,q,sort,affordable_only,save
  )
  ratings=locations.neighborhood_ratings(area)
  arr=[]
- for row in visible_rows(saved_ids if saved_only else None):
+ for row in visible_rows(saved_ids if saved_only else None, claims):
   if area!='all' and row['area'].casefold()!=area.casefold():continue
   name=row.get('neighborhood') or ''
   if neighborhood and name.casefold()!=neighborhood.casefold():continue
@@ -105,7 +119,7 @@ def public_listings(budget:float=Query(4200,ge=0),property_type:str='all',area:s
 
 @app.get('/api/public/markets')
 def public_markets():
- return [{'city':PREVIEW_CITY,'state':'NY'}]
+ return [{'city':PREVIEW_CITY,'state':PREVIEW_STATE}]
 
 @app.get('/api/public/neighborhoods')
 def public_neighborhoods():
@@ -113,12 +127,11 @@ def public_neighborhoods():
 
 @app.get('/api/neighborhoods')
 def neighborhoods(request:Request,area:str=Query(min_length=1,max_length=80)):
- auth.identity(request)
- return neighborhood_summary(area)
+ return neighborhood_summary(area, auth.identity(request))
 
-def neighborhood_summary(area):
+def neighborhood_summary(area, claims=None):
  ratings=locations.neighborhood_ratings(area)
- names={row['neighborhood'] for row in visible_rows()
+ names={row['neighborhood'] for row in visible_rows(claims=claims)
         if row['area'].casefold()==area.casefold() and row.get('neighborhood')}
  return [dict(name=name,**ratings.get((area.casefold(),name.casefold()),{'rating':None,'rating_count':0}))
          for name in sorted(names,key=str.casefold)]
@@ -153,10 +166,11 @@ def put_saved_location(body:SavedLocationBody,request:Request):
 
 @app.put('/api/neighborhoods/rating')
 def put_neighborhood_rating(body:NeighborhoodRating,request:Request):
- subject=require_account(request)['sub']
+ claims=require_account(request)
+ subject=claims['sub']
  city=locations.normalize_place(body.city)
  neighborhood=locations.normalize_place(body.neighborhood)
- match=next((row for row in visible_rows() if row['area'].casefold()==city.casefold()
+ match=next((row for row in visible_rows(claims=claims) if row['area'].casefold()==city.casefold()
              and (row.get('neighborhood') or '').casefold()==neighborhood.casefold()),None)
  if not neighborhood or not match:raise HTTPException(404,'Neighborhood not found in this city')
  locations.rate_neighborhood(subject,match['area'],match['neighborhood'],body.stars)
@@ -164,14 +178,15 @@ def put_neighborhood_rating(body:NeighborhoodRating,request:Request):
 
 @app.get('/api/areas')
 def areas(request:Request):
- auth.identity(request)
+ claims=auth.identity(request)
  groups={}
- for x in map(public,visible_rows()):groups.setdefault(x['area'],[]).append(x['monthly_cost'])
+ for x in map(public,visible_rows(claims=claims)):groups.setdefault(x['area'],[]).append(x['monthly_cost'])
  return [{'name':k,'avg_monthly':round(sum(v)/len(v)),'count':len(v)} for k,v in sorted(groups.items())]
 @app.post('/api/listings/{listing_id}/favorite')
 def favorite(listing_id:str,request:Request):
  claims=auth.identity(request)
- item=next((x for x in all_rows() if str(x['id'])==listing_id),None)
+ rows = rentcast_account.private_rows(claims['sub']) if claims and listing_id.startswith('private-') else all_rows()
+ item=next((x for x in rows if str(x['id'])==listing_id),None)
  if not item:raise HTTPException(404,'Listing not found')
  if claims:
   from api.storage import set_account_favorite
@@ -181,11 +196,11 @@ def favorite(listing_id:str,request:Request):
  item['favorite']=not bool(item.get('favorite'));save_row(item);return {'id':listing_id,'favorite':bool(item['favorite'])}
 @app.post('/api/listings')
 def create_listing(body:ListingBody,request:Request):
- if auth.required():require_admin(request,None)
+ require_admin(request)
  n=normalize(body.model_dump());n['id']=str(int(time.time()*1000));save_row(n);return public(n)
 @app.post('/api/import')
 def import_csv(body:ImportBody,request:Request):
- if auth.required():require_admin(request,None)
+ require_admin(request)
  count=0
  for row in csv.DictReader(io.StringIO(body.csv)):
   if row.get('title') or row.get('address'):save_row(normalize(row));count+=1
@@ -204,9 +219,8 @@ def list_markets(request:Request):
  return [{'city':city,'state':state} for city,state in configured_markets()]
 
 @app.put('/api/feed/markets')
-def add_market(body:MarketBody,request:Request,token:Optional[str]=Header(None,alias='X-Admin-Token')):
- if auth.required():auth.identity(request)
- else:require_admin(request,token)
+def add_market(body:MarketBody,request:Request):
+ auth.identity(request)
  city=' '.join(body.city.split())
  state=body.state.upper()
  if not city or city.casefold()=='all' or not re.fullmatch('[A-Z]{2}',state) or any(char in city for char in ',;'):
@@ -267,14 +281,9 @@ def can_manage_sync(claims):
  access=read_feed_setting('alert_access:'+claims['sub'])
  return not access or access['enabled']
 
-def require_admin(request,token):
- if auth.required():
-  if not can_manage_sync(auth.identity(request)):
-   raise HTTPException(403,'Owner or approved sync access is required')
-  return
- if not ADMIN_TOKEN:raise HTTPException(503,'Configure ADMIN_TOKEN to change feed settings')
- if not token or not hmac.compare_digest(token.encode(),ADMIN_TOKEN.encode()):
-  raise HTTPException(401,'Invalid admin token')
+def require_admin(request):
+ if auth.required() and not can_manage_sync(auth.identity(request)):
+  raise HTTPException(403,'Owner or approved sync access is required')
 
 def require_market(city):
  for name,_ in configured_markets():
@@ -294,15 +303,15 @@ def rentcast_enabled():
 def feed_status(city:str,request:Request):
  auth.identity(request)
  configured=any(name.casefold()==city.casefold() for name,_ in configured_markets())
- rentcast_ready=rentcast_enabled()
+ rentcast_ready=rentcast_enabled() and (not auth.required() or city.casefold()==PREVIEW_CITY.casefold())
  return {'configured':configured and rentcast_ready,
          'schedule_enabled':configured and bool(read_feed_setting('schedule:'+city.casefold())),
          'runner_enabled':os.getenv('HOMESCOPE_DAILY_ENABLED','false').lower()=='true',
          'email_enabled':bool(topic_prefix())}
 
 @app.put('/api/feed/schedule')
-def city_schedule(body:CitySchedule,request:Request,token:Optional[str]=Header(None,alias='X-Admin-Token')):
- require_admin(request,token)
+def city_schedule(body:CitySchedule,request:Request):
+ require_admin(request)
  city=require_market(body.city)
  write_feed_setting('schedule:'+city.casefold(),{'city':city} if body.enabled else None)
  return {'schedule_enabled':body.enabled}
@@ -312,9 +321,9 @@ def account_watch_key(city,claims,email):
  return watch_key(city,email)
 
 @app.put('/api/feed/watch')
-def subscribe(body:WatchBody,request:Request,token:Optional[str]=Header(None,alias='X-Admin-Token')):
+def subscribe(body:WatchBody,request:Request):
  claims=auth.identity(request)
- require_admin(request,token)
+ require_admin(request)
  city=require_market(body.city)
  email=clean_email(auth.verified_email(request,claims) if claims else body.email)
  if not topic_prefix():raise HTTPException(503,'Email subscriptions are not configured')
@@ -338,9 +347,8 @@ def subscribe(body:WatchBody,request:Request,token:Optional[str]=Header(None,ali
  return {'subscribed':True,'confirmation_required':pending}
 
 @app.delete('/api/feed/watch')
-def unsubscribe(body:UnsubscribeBody,request:Request,token:Optional[str]=Header(None,alias='X-Admin-Token')):
+def unsubscribe(body:UnsubscribeBody,request:Request):
  claims=auth.identity(request)
- if claims is None:require_admin(request,token)
  email='' if claims else clean_email(body.email)
  key=account_watch_key(body.city.strip(),claims,email)
  previous=read_feed_setting('watch:'+key) or {}
@@ -352,30 +360,71 @@ def unsubscribe(body:UnsubscribeBody,request:Request,token:Optional[str]=Header(
  write_feed_setting('notices:'+key,None)
  return {'subscribed':False}
 
-def invoke_etl(function,city):
- import boto3
- from botocore.config import Config
+class RentCastConnection(BaseModel):
+ api_key:SecretStr
+ free_remaining:StrictInt=Field(ge=0,le=rentcast_account.FREE_LIMIT)
 
- client=boto3.client('lambda',config=Config(connect_timeout=2,read_timeout=26,retries={'total_max_attempts':1}))
- response=client.invoke(FunctionName=function,InvocationType='RequestResponse',
-                        Payload=json.dumps({'mode':'manual','city':city}).encode())
- with response['Payload'] as payload:
-  if response.get('FunctionError'):raise RuntimeError('ETL invocation failed')
-  result=json.load(payload)
- if type(result.get('updated')) is not int:raise RuntimeError('Invalid ETL response')
- return result['updated']
+
+class RentCastRefresh(BaseModel):
+ property_type:Literal['Apartment','House']='Apartment'
+ confirmed_request:Optional[str]=Field(default=None,pattern=r'^[a-f0-9]{64}$')
+
+
+def rentcast_subject(request):
+ subject=require_account(request)['sub']
+ if not os.getenv('HOMESCOPE_RENTCAST_KEY_PREFIX'):
+  raise HTTPException(503,'Private RentCast connections are unavailable on this server.')
+ return subject
+
+
+@app.get('/api/rentcast/account')
+def rentcast_dashboard(request:Request):
+ return rentcast_account.dashboard(rentcast_subject(request))
+
+
+@app.put('/api/rentcast/account')
+def connect_rentcast(body:RentCastConnection,request:Request):
+ subject=rentcast_subject(request)
+ key=body.api_key.get_secret_value().strip()
+ if not key or len(key)>512 or any(not ('!'<=char<='~') for char in key):
+  raise HTTPException(422,'Enter a valid RentCast API key.')
+ if sha256(key.encode()).hexdigest()==os.getenv('HOMESCOPE_PREVIEW_KEY_HASH'):
+  raise HTTPException(422,'Use a RentCast account separate from the public preview.')
+ rentcast_account.connect(subject,key,body.free_remaining)
+ return rentcast_account.dashboard(subject)
+
+
+@app.delete('/api/rentcast/account')
+def disconnect_rentcast(request:Request):
+ subject=rentcast_subject(request)
+ rentcast_account.disconnect(subject)
+ return rentcast_account.dashboard(subject)
+
 
 @app.post('/api/sync')
-def sync(request:Request,city:str='',header_token:Optional[str]=Header(None,alias='X-Admin-Token')):
- if auth.required():auth.identity(request)
- elif ADMIN_TOKEN or os.getenv('RENTCAST_API_KEY','').strip():require_admin(request,header_token)
- if city and rentcast_enabled():city=require_market(city)
+def sync(request:Request,city:str='',body:Optional[RentCastRefresh]=None):
+ if not auth.required():
+  if city and rentcast_enabled():city=require_market(city)
+  try:
+   return {'updated':sync_feed(city=city)}
+  except Exception:
+   raise HTTPException(502,'Feed sync failed. Check the server configuration and provider status.') from None
+
+ subject=rentcast_subject(request)
+ key=rentcast_account.read_key(subject,decrypt=True)
+ if not key:raise HTTPException(409,'Connect your RentCast key in Settings and alerts to refresh listings.')
+ city=require_market(city)
+ state=next(state for name,state in configured_markets() if name==city)
+ options=body or RentCastRefresh()
+ endpoint='sale' if options.property_type=='House' else 'rental/long-term'
  try:
-  function=os.getenv('HOMESCOPE_SYNC_FUNCTION','')
-  if function:return {'updated':invoke_etl(function,city)}
-  if auth.required():raise RuntimeError('ETL function is not configured')
-  return {'updated':sync_feed(city=city)}
- except Exception:raise HTTPException(502,'Feed sync failed. Check the server configuration and provider status.') from None
+  result=rentcast_account.refresh(subject,key,city,state,endpoint,options.confirmed_request)
+ except Exception as exc:
+  request_context=(request.scope.get('aws.event') or {}).get('requestContext',{})
+  logger.error('Private RentCast refresh failed (API request %s, error type %s)',
+               request_context.get('requestId'),type(exc).__name__)
+  raise HTTPException(502,'RentCast refresh failed. Check your key and subscription in the RentCast dashboard.') from None
+ return result
 @app.get('/')
 def home():return FileResponse(WEB/'index.html')
 app.mount('/',StaticFiles(directory=WEB,html=True),name='web')

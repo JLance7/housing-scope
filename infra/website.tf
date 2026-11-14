@@ -128,8 +128,8 @@ resource "aws_s3_object" "website" {
   }
   bucket        = aws_s3_bucket.website.id
   key           = each.key
-  source        = "${path.module}/../web/${each.key}"
-  source_hash   = filemd5("${path.module}/../web/${each.key}")
+  source        = "${path.module}/../src/web/${each.key}"
+  source_hash   = filemd5("${path.module}/../src/web/${each.key}")
   content_type  = each.value
   cache_control = "public, max-age=60"
 }

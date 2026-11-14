@@ -124,7 +124,7 @@ resource "aws_iam_policy" "runtime_boundary" {
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = local.logs_arn },
       { Effect = "Allow", Action = ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"], Resource = local.table_arn },
       { Effect = "Allow", Action = ["cognito-idp:ListUsers", "cognito-idp:AdminAddUserToGroup", "cognito-idp:AdminRemoveUserFromGroup"], Resource = local.pool_arn },
-      { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = "${local.regional_arn}:lambda:${var.region}:${local.account}:function:${local.name}-sync" },
+      { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"], Resource = "${local.regional_arn}:ssm:${var.region}:${local.account}:parameter/${local.name}/rentcast/*" },
       { Effect = "Allow", Action = ["sns:CreateTopic", "sns:GetTopicAttributes", "sns:Subscribe", "sns:DeleteTopic", "sns:Publish"], Resource = "${local.regional_arn}:sns:${var.region}:${local.account}:${local.name}-watch-*" }
     ]
   })
@@ -168,11 +168,6 @@ resource "aws_iam_role_policy" "regional" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Action = ["lambda:CreateFunction", "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:GetFunctionCodeSigningConfig", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:DeleteFunction", "lambda:ListVersionsByFunction", "lambda:GetPolicy", "lambda:AddPermission", "lambda:RemovePermission", "lambda:ListTags", "lambda:TagResource", "lambda:UntagResource"], Resource = local.lambda_arn },
-      # The Terraform preload explicitly invokes $LATEST.
-      { Effect = "Allow", Action = ["lambda:InvokeFunction"], Resource = [
-        "${local.regional_arn}:lambda:${var.region}:${local.account}:function:${local.name}-sync",
-        "${local.regional_arn}:lambda:${var.region}:${local.account}:function:${local.name}-sync:$LATEST",
-      ] },
       { Effect = "Allow", Action = ["dynamodb:CreateTable", "dynamodb:DescribeTable", "dynamodb:UpdateTable", "dynamodb:DeleteTable", "dynamodb:DescribeContinuousBackups", "dynamodb:UpdateContinuousBackups", "dynamodb:DescribeTimeToLive", "dynamodb:ListTagsOfResource", "dynamodb:TagResource", "dynamodb:UntagResource"], Resource = local.table_arn },
       { Effect = "Allow", Action = ["events:PutRule", "events:DescribeRule", "events:EnableRule", "events:DisableRule", "events:DeleteRule", "events:PutTargets", "events:ListTargetsByRule", "events:RemoveTargets", "events:ListTagsForResource", "events:TagResource", "events:UntagResource"], Resource = "${local.regional_arn}:events:${var.region}:${local.account}:rule/${local.name}-sync" },
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy", "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource", "logs:ListTagsLogGroup"], Resource = local.logs_arn },

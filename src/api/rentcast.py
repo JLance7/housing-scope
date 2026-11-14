@@ -4,11 +4,16 @@ from hashlib import sha256
 from math import isfinite
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 SOURCE = 'RentCast'
 MARKER = '__homescope_rentcast_daily__'
 ENDPOINTS = ('sale', 'rental/long-term')
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def markets(value):
@@ -28,12 +33,20 @@ def today():
     return datetime.now(timezone.utc).date()
 
 
-def fetch_listings(key, city, state, endpoint):
+def fetch_listings(key, city, state, endpoint, *, reserve=None, mark_success=None):
+    from api.storage import reserve_rentcast_request
+
     query = urlencode({'city': city, 'state': state, 'status': 'Active', 'limit': 100})
     request = Request(f'https://api.rentcast.io/v1/listings/{endpoint}?{query}',
                       headers={'Accept': 'application/json', 'X-Api-Key': key})
+    if reserve is None:
+        reserve = reserve_rentcast_request
+    if not reserve(today().isoformat()):
+        return []
     try:
-        with urlopen(request, timeout=15) as response:
+        with build_opener(NoRedirect()).open(request, timeout=15) as response:
+            if response.status == 200 and mark_success is not None:
+                mark_success()
             rows = json.load(response)
     except HTTPError as exc:
         raise RuntimeError(f'RentCast returned HTTP {exc.code}. Check the API dashboard.') from None

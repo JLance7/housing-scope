@@ -9,7 +9,7 @@ from pathlib import Path
 from api import rentcast
 
 ROOT = Path(__file__).resolve().parent.parent
-DB = Path(os.getenv('HOMESCOPE_DB', ROOT / 'data' / 'homescope.db'))
+DB = Path(os.getenv('HOMESCOPE_DB', ROOT.parent / 'data' / 'homescope.db'))
 TABLE = os.getenv('DYNAMODB_TABLE', '').strip()
 
 
@@ -136,6 +136,39 @@ def write_feed_setting(key, value):
             conn.execute('INSERT OR REPLACE INTO feed_settings VALUES (?, ?)', (key, json.dumps(value)))
         conn.commit()
 
+
+def change_feed_setting(key, update):
+    """Apply an update against the current value, retrying conflicting writes."""
+    item_id = '__homescope_' + key
+    table = dynamo_table()
+    if table:
+        for _ in range(8):
+            row = table.get_item(Key={'id': item_id}, ConsistentRead=True).get('Item')
+            previous = row['payload'] if row else None
+            value, result = update(json.loads(previous) if previous is not None else None)
+            if value is None:
+                return result
+            condition = {'ConditionExpression': 'attribute_not_exists(id)'}
+            if row:
+                condition = {'ConditionExpression': 'payload = :previous',
+                             'ExpressionAttributeValues': {':previous': previous}}
+            try:
+                table.put_item(Item={'id': item_id, 'payload': json.dumps(value)}, **condition)
+                return result
+            except table.meta.client.exceptions.ConditionalCheckFailedException:
+                continue
+        raise RuntimeError('Concurrent usage update')
+
+    with closing(db()) as conn:
+        conn.execute('CREATE TABLE IF NOT EXISTS feed_settings (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute('SELECT payload FROM feed_settings WHERE id = ?', (item_id,)).fetchone()
+        value, result = update(json.loads(row['payload']) if row else None)
+        if value is not None:
+            conn.execute('INSERT OR REPLACE INTO feed_settings VALUES (?, ?)', (item_id, json.dumps(value)))
+        conn.commit()
+        return result
+
 def monthly_cost(x):
  if x.get('property_type')=='Apartment':return round(float(x.get('rent') or x.get('price') or 0)+float(x.get('hoa_monthly') or 0),2)
  principal=float(x.get('price') or 0)*.9;rate=float(os.getenv('MORTGAGE_RATE','0.0675'))/12;months=360
@@ -160,14 +193,22 @@ def set_account_favorite(subject, listing_id, favorite):
         conn.commit()
 
 
+def reserve_rentcast_request(day):
+    """Cover a full billing cycle even when it crosses a daylight-saving change."""
+    return reserve_rentcast_days('__homescope_rentcast_requests__', day, 50, window_days=33)
+
+
 def reserve_manual_rentcast_day(day):
     """One manual call per UTC date and at most 15 across any 32 UTC dates."""
-    key = '__homescope_rentcast_manual__'
-    cutoff = (date.fromisoformat(day) - timedelta(days=31)).isoformat()
+    return reserve_rentcast_days('__homescope_rentcast_manual__', day, 15, once_per_day=True)
+
+
+def reserve_rentcast_days(key, day, limit, *, window_days=32, once_per_day=False):
+    cutoff = (date.fromisoformat(day) - timedelta(days=window_days - 1)).isoformat()
 
     def next_days(days):
         recent = [value for value in days if value >= cutoff]
-        if (recent and max(recent) >= day) or len(recent) >= 15:
+        if len(recent) >= limit or (once_per_day and recent and max(recent) >= day):
             return None
         return recent + [day]
 

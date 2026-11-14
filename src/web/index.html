@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HomeScope | Compare housing costs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#search">Skip to search</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./">HomeScope</a>
+    <nav class="page-nav" aria-label="On this page">
+      <a href="#search">Search</a>
+      <a href="#apartmentSearch" id="openShortlist">Shortlist</a>
+    </nav>
+    <div class="account-buttons">
+      <span class="account-status" id="accountStatus" role="status"></span>
+      <button class="button primary" id="signIn" type="button" hidden>Sign in with Google</button>
+      <button class="button quiet" id="signOut" type="button" hidden>Sign out</button>
+    </div>
+  </div>
+</header>
+<main class="page">
+  <section class="search-panel panel" id="search" aria-labelledby="searchTitle">
+    <h1 id="searchTitle">Find a place to live</h1>
+    <p class="muted preview-note" id="guestHelp" hidden>Salt Lake City preview. Sign in to connect your RentCast key and refresh other cities.</p>
+    <div class="filters">
+      <label>City or state
+        <input id="citySearch" list="cityOptions" value="Salt Lake City, UT" autocomplete="off" maxlength="84" aria-describedby="cityStatus">
+        <datalist id="cityOptions"></datalist>
+      </label>
+      <label>Property type
+        <select id="type"><option value="all">Rentals and homes</option><option value="Apartment">Rentals</option><option value="House">Homes for sale</option></select>
+      </label>
+      <div class="budget-filter">
+        <label for="budget">Monthly budget <output id="budgetValue" for="budget">$2,400</output></label>
+        <input id="budget" type="range" min="900" max="4200" step="100" value="2400" aria-describedby="budgetHint">
+        <label class="check-filter" id="budgetHint"><input type="checkbox" id="affordableOnly"> Only show places within budget</label>
+      </div>
+    </div>
+    <details class="disclosure">
+      <summary>More filters</summary>
+      <div class="detail-grid">
+        <label>Neighborhood or ZIP
+          <input id="neighborhood" list="neighborhoodOptions" placeholder="All neighborhoods and ZIPs" autocomplete="off" maxlength="80">
+          <datalist id="neighborhoodOptions"></datalist>
+        </label>
+        <label>Minimum community rating
+          <select id="minRating"><option value="0">Any rating</option><option value="3">3 stars and up</option><option value="4">4 stars and up</option><option value="5">5 stars</option></select>
+        </label>
+        <label>Maximum listing price <input type="number" id="maxPrice" min="0" placeholder="Any price"></label>
+        <label>Search by name or address <input id="searchText" type="search" placeholder="e.g. Downtown"></label>
+      </div>
+      <button class="button quiet reset-filters" id="clearFilters" type="button">Reset filters</button>
+    </details>
+    <div class="location-actions" id="locationActions" hidden>
+      <button class="button primary" id="syncFeed" type="button" hidden>Refresh listings</button>
+      <button class="button secondary" id="saveLocation" type="button" hidden>Save this location</button>
+      <button class="button quiet" id="openLocations" type="button">Location tools</button>
+    </div>
+    <p class="status" id="feedAction" role="status"></p>
+    <p class="status" id="cityStatus" role="status"></p>
+  </section>
+
+  <section class="results" id="results" aria-labelledby="resultsTitle">
+    <div class="section-head results-head">
+      <div><h2 id="resultsTitle">Listings</h2><p class="muted"><span id="resultsContext"></span><span id="count"></span></p></div>
+      <div class="results-actions">
+        <button class="button secondary" id="savedToggle" type="button" aria-pressed="false" hidden>Saved listings</button>
+        <label>Sort by
+          <select id="sort"><option value="cost">Monthly cost</option><option value="price">Listing price</option><option value="change">Largest price drop</option><option value="rating">Neighborhood rating</option></select>
+        </label>
+      </div>
+    </div>
+    <p id="listingStatus" class="status" role="status">Loading listings…</p>
+    <div class="listing-grid" id="listingGrid" aria-busy="true"></div>
+    <div class="empty panel" id="empty" hidden></div>
+    <p class="disclaimer">Monthly costs are estimates. Confirm prices, fees, and availability with the listing provider.</p>
+  </section>
+
+  <details class="panel apartment-search" id="apartmentSearch">
+    <summary>Apartment shortlist</summary>
+    <div class="shortlist-content">
+      <p class="muted">Your saved areas and rentals stay in this browser.</p>
+      <div class="detail-grid apartment-filters">
+        <label>Area <select id="rentalAreaFilter"><option value="">All areas</option></select></label>
+        <label>Max monthly cost <input id="rentalPriceFilter" type="number" min="1" max="100000" step="0.01" placeholder="Any price"></label>
+        <label>Minimum personal area rating
+          <select id="rentalRatingFilter">
+            <option value="">Any rating</option><option value="3">3 stars</option><option value="4">4 stars</option><option value="5">5 stars</option>
+          </select>
+        </label>
+        <label>Minimum Niche grade <select id="rentalGradeFilter"><option value="">Any grade</option></select></label>
+      </div>
+      <details class="disclosure" id="rentalAreaEditor">
+        <summary id="rentalAreaSummary">Add an area</summary>
+        <form id="rentalAreaForm">
+          <div class="detail-grid">
+            <label>City, town, or ZIP <input name="place" required maxlength="80" placeholder="White Plains"></label>
+            <label>State <input name="state" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}" placeholder="NY"></label>
+            <label>Neighborhood <input name="neighborhood" maxlength="80" placeholder="Optional"></label>
+            <label>Your area rating
+              <select name="rating">
+                <option value="">Unrated</option><option value="1">1 star</option><option value="2">2 stars</option><option value="3">3 stars</option><option value="4">4 stars</option><option value="5">5 stars</option>
+              </select>
+            </label>
+            <label>Niche grade from your research <select name="grade" id="rentalGradeEntry"><option value="">Unknown</option></select></label>
+            <label>Local safety report URL <input name="safety" type="url" maxlength="2048" placeholder="Optional official source"></label>
+          </div>
+          <div class="button-row">
+            <button class="button primary" type="submit">Save area</button>
+            <button class="button quiet" type="button" id="cancelRentalArea">Cancel</button>
+          </div>
+        </form>
+      </details>
+      <div class="area-comparison" tabindex="0" role="region" aria-label="Area comparison">
+        <table>
+          <caption>Compare areas by Niche grade</caption>
+          <thead>
+            <tr><th scope="col">Area</th><th scope="col">Niche grade</th><th scope="col">Your rating</th><th scope="col">Matches</th><th scope="col">Lowest known cost</th></tr>
+          </thead>
+          <tbody id="rentalAreaComparison"></tbody>
+        </table>
+      </div>
+      <div id="rentalAreas" class="listing-grid apartment-grid"></div>
+      <details class="disclosure" id="rentalListingEditor">
+        <summary id="rentalListingSummary">Save a rental by link</summary>
+        <form id="rentalListingForm">
+          <div class="detail-grid">
+            <label>Listing URL <input name="url" type="url" maxlength="2048" required placeholder="https://www.zillow.com/…"></label>
+            <label>Building, address, or unit <input name="title" required maxlength="120"></label>
+            <label>Area <select name="area" id="rentalListingArea" required></select></label>
+            <label>Base monthly rent <input name="rent" type="number" min="1" max="100000" step="0.01" required></label>
+            <label>Monthly fees and parking <input name="fees" type="number" min="0" max="100000" step="0.01" placeholder="Unknown"></label>
+            <label>Move-in cash <input name="moveIn" type="number" min="0" max="1000000" step="0.01" placeholder="Unknown"></label>
+          </div>
+          <div class="button-row">
+            <button class="button primary" type="submit">Save rental</button>
+            <button class="button quiet" type="button" id="cancelRentalListing">Cancel</button>
+          </div>
+        </form>
+      </details>
+      <p class="status" id="rentalFeedback" role="status"></p>
+      <p class="muted apartment-count" id="rentalCount" role="status"></p>
+      <div id="rentalShortlist" class="listing-grid apartment-grid"></div>
+    </div>
+  </details>
+
+  <details class="panel settings" id="settings">
+    <summary>Settings and alerts</summary>
+    <div class="tools-section">
+      <details class="panel tool-panel" id="rentcastPanel" hidden>
+        <summary>Your RentCast account</summary>
+        <div class="tool-content">
+          <p id="rentcastUsage" class="muted" role="status"></p>
+          <p class="muted">Use a dedicated Developer account. HomeScope estimates usage from requests made here. Check RentCast for your current balance and invoice.</p>
+          <a href="https://app.rentcast.io/app/api" target="_blank" rel="noopener noreferrer">Open RentCast API dashboard ↗</a>
+          <form id="rentcastKeyForm" autocomplete="off">
+            <label>RentCast API key <input id="rentcastKey" type="password" required maxlength="512" autocomplete="off"></label>
+            <label>Free calls left in RentCast <input id="rentcastFree" type="number" required min="0" max="50" step="1" placeholder="Check your dashboard"></label>
+            <button type="submit" class="button primary">Save key</button>
+            <button type="button" id="disconnectRentcast" class="button quiet" hidden>Disconnect</button>
+          </form>
+          <p id="rentcastStatus" class="status" role="status"></p>
+        </div>
+      </details>
+      <p class="muted" id="emailAccessHelp" hidden>Contact the project owner to request access to the email subscriptions group.</p>
+      <details class="panel tool-panel" id="locationTools" hidden>
+        <summary>Location tools</summary>
+        <div class="tool-content">
+          <div id="accountLocations" class="tool-group" hidden>
+            <label>Open a saved location <select id="savedLocations"><option value="">Choose a saved location</option></select></label>
+            <form id="ratingForm">
+              <label>Rate the selected neighborhood
+                <select id="ratingStars"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select>
+              </label>
+              <button class="button secondary" id="submitRating" type="submit" disabled>Save rating</button>
+            </form>
+          </div>
+          <form id="addCity" hidden>
+            <label>City <input id="cityName" maxlength="80" required placeholder="Chicago"></label>
+            <button class="button secondary" type="submit">Add city</button>
+          </form>
+          <form id="marketForm" hidden>
+            <label>Add an online city <input id="marketCity" maxlength="80" required placeholder="Chicago"></label>
+            <label>State <input id="marketState" list="stateOptions" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" required placeholder="IL" autocomplete="off"></label>
+            <datalist id="stateOptions"></datalist>
+            <button class="button secondary" type="submit">Add location</button>
+          </form>
+          <label class="csv-label" hidden>Import listings CSV <input id="csvFile" type="file" accept=".csv,text/csv"></label>
+        </div>
+      </details>
+      <details class="panel tool-panel" id="emailPanel" hidden>
+        <summary>Automatic updates and email alerts</summary>
+        <div class="tool-content">
+          <p id="feedStatus" class="status" role="status"></p>
+          <label class="check-filter"><input type="checkbox" id="scheduleCity" disabled> Include this city in daily sync</label>
+          <form id="watchForm">
+            <div class="detail-grid">
+              <label>Email <input id="watchEmail" type="email" maxlength="254" required autocomplete="email"></label>
+              <label>Max monthly cost <input id="watchBudget" type="number" min="1" max="100000" placeholder="Optional"></label>
+              <label>Neighborhood or ZIP <select id="watchNeighborhood"><option value="">Any</option></select></label>
+              <label>Address keyword <input id="watchKeyword" maxlength="100" placeholder="Optional"></label>
+              <label>Email delivery hour (UTC) <select id="watchHour"></select></label>
+              <label>Listing type <select id="watchType"><option value="all">Either</option><option value="House">For sale</option><option value="Apartment">For rent</option></select></label>
+            </div>
+            <p class="muted">Choose at least one match criterion. After you confirm by email, HomeScope sends alerts when a scheduled import finds new matches.</p>
+            <div class="button-row">
+              <button class="button primary" id="watchSave" disabled>Subscribe or update</button>
+              <button class="button quiet" id="watchRemove" type="button">Unsubscribe</button>
+            </div>
+          </form>
+        </div>
+      </details>
+      <details class="panel tool-panel" id="ownerPanel" hidden>
+        <summary>Manage email and schedule access</summary>
+        <div class="tool-content">
+          <form id="adminForm">
+            <label>Verified Google email <input id="adminEmail" type="email" maxlength="254" required></label>
+            <button class="button secondary" value="grant">Grant access</button>
+            <button class="button quiet" value="revoke">Remove access</button>
+          </form>
+          <p id="adminStatus" class="status" role="status"></p>
+        </div>
+      </details>
+      <details class="panel tool-panel" id="areas">
+        <summary>Area cost snapshot</summary>
+        <div class="tool-content"><p class="muted">Estimated monthly costs for the selected city.</p><div id="areaBars"></div></div>
+      </details>
+      <details class="panel tool-panel">
+        <summary>About HomeScope and its data</summary>
+        <div class="tool-content">
+          <p>HomeScope is a personal project that demonstrates listing imports, budgeting, and alert delivery. Online listings show when HomeScope last checked them. Sample listings are labeled.</p>
+          <p>Ownership estimates include the mortgage payment and any taxes, insurance, or HOA fees supplied with the listing.</p>
+        </div>
+      </details>
+    </div>
+  </details>
+</main>
+<dialog id="rentcastOverage">
+  <form method="dialog">
+    <h2>Allow one potentially billable request?</h2>
+    <p id="rentcastOverageMessage"></p>
+    <div class="button-row">
+      <button class="button secondary" value="cancel" autofocus>Cancel</button>
+      <button class="button primary" value="confirm">Allow one request</button>
+    </div>
+  </form>
+</dialog>
+<script src="auth-config.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
